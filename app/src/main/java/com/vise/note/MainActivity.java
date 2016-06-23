@@ -18,7 +18,9 @@ import android.widget.TextView;
 import com.vise.algorithm.BubbleSortUtil;
 import com.vise.algorithm.HeapSortUtil;
 import com.vise.algorithm.InsertionSortUtil;
+import com.vise.algorithm.MergeSortUtil;
 import com.vise.algorithm.QuickSortUtil;
+import com.vise.algorithm.RadixSortUtil;
 import com.vise.algorithm.SelectionSortUtil;
 import com.vise.algorithm.ShellSortUtil;
 
@@ -63,6 +65,30 @@ public class MainActivity extends AppCompatActivity
 //        shellSortTest(A);
 //        heapSortTest(A);
         quickSortTest(A);
+//        radixSortTest(A);
+//        mergeSortTest(A);
+    }
+
+    private void mergeSortTest(int[] A) {
+        MergeSortUtil.mergeSortTest(A);
+        StringBuilder stringBuilder = new StringBuilder();
+        StringBuilder[] stringBuilders = MergeSortUtil.stringBuilders;
+        stringBuilder.append("MergeSort A\n");
+        for(int i = 0; i < stringBuilders.length; i++){
+            stringBuilder.append(stringBuilders[i]);
+        }
+        sortTv.setText(stringBuilder);
+    }
+
+    private void radixSortTest(int[] A) {
+        RadixSortUtil.radixSortTest(A, 10, 2);
+        StringBuilder stringBuilder = new StringBuilder();
+        StringBuilder[] stringBuilders = RadixSortUtil.stringBuilders;
+        stringBuilder.append("RadixSort A\n");
+        for(int i = 0; i < stringBuilders.length; i++){
+            stringBuilder.append(stringBuilders[i]);
+        }
+        sortTv.setText(stringBuilder);
     }
 
     private void quickSortTest(int[] A) {
@@ -71,7 +97,9 @@ public class MainActivity extends AppCompatActivity
         StringBuilder[] stringBuilders = QuickSortUtil.stringBuilders;
         stringBuilder.append("QuickSort A\n");
         for(int i = 0; i < stringBuilders.length; i++){
-            stringBuilder.append(stringBuilders[i]);
+            if(stringBuilders[i] != null){
+                stringBuilder.append(stringBuilders[i]);
+            }
         }
         sortTv.setText(stringBuilder);
     }

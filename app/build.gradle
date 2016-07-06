@@ -25,5 +25,8 @@ dependencies {
     compile 'com.android.support:appcompat-v7:22.2.1'
     compile 'com.android.support:design:22.2.1'
 
+    compile 'com.vise.xiaoyaoyou:common_base:1.0.1'
+    compile 'com.vise.xiaoyaoyou:common_utils:1.0.+'
+
     compile project(':algorithm')
 }

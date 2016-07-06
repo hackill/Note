@@ -3,7 +3,6 @@ package com.vise.note;
 import android.os.Bundle;
 import android.support.design.widget.FloatingActionButton;
 import android.support.design.widget.Snackbar;
-import android.util.Log;
 import android.view.View;
 import android.support.design.widget.NavigationView;
 import android.support.v4.view.GravityCompat;
@@ -13,21 +12,14 @@ import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.view.Menu;
 import android.view.MenuItem;
-import android.widget.TextView;
-
-import com.vise.algorithm.BubbleSortUtil;
-import com.vise.algorithm.HeapSortUtil;
-import com.vise.algorithm.InsertionSortUtil;
-import com.vise.algorithm.MergeSortUtil;
-import com.vise.algorithm.QuickSortUtil;
-import com.vise.algorithm.RadixSortUtil;
-import com.vise.algorithm.SelectionSortUtil;
-import com.vise.algorithm.ShellSortUtil;
+import android.widget.Button;
+import com.vise.common_utils.utils.view.ActivityUtil;
+import com.vise.note.activity.AlgorithmActivity;
 
 public class MainActivity extends AppCompatActivity
-        implements NavigationView.OnNavigationItemSelectedListener {
+        implements NavigationView.OnNavigationItemSelectedListener, View.OnClickListener {
 
-    private TextView sortTv;
+    private Button algorithmBtn;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -57,106 +49,8 @@ public class MainActivity extends AppCompatActivity
     }
 
     private void init() {
-        sortTv = (TextView) findViewById(R.id.insertion_sort);
-        int[] A = new int[]{23, 12, 34, 24, 35, 67, 11, 23, 33, 45};
-//        insertionSortTest(A);
-//        selectionSortTest(A);
-//        bubbleSortTest(A);
-//        shellSortTest(A);
-//        heapSortTest(A);
-        quickSortTest(A);
-//        radixSortTest(A);
-//        mergeSortTest(A);
-    }
-
-    private void mergeSortTest(int[] A) {
-        MergeSortUtil.mergeSortTest(A);
-        StringBuilder stringBuilder = new StringBuilder();
-        StringBuilder[] stringBuilders = MergeSortUtil.stringBuilders;
-        stringBuilder.append("MergeSort A\n");
-        for(int i = 0; i < stringBuilders.length; i++){
-            stringBuilder.append(stringBuilders[i]);
-        }
-        sortTv.setText(stringBuilder);
-    }
-
-    private void radixSortTest(int[] A) {
-        RadixSortUtil.radixSortTest(A, 10, 2);
-        StringBuilder stringBuilder = new StringBuilder();
-        StringBuilder[] stringBuilders = RadixSortUtil.stringBuilders;
-        stringBuilder.append("RadixSort A\n");
-        for(int i = 0; i < stringBuilders.length; i++){
-            stringBuilder.append(stringBuilders[i]);
-        }
-        sortTv.setText(stringBuilder);
-    }
-
-    private void quickSortTest(int[] A) {
-        QuickSortUtil.quickSortTest(A);
-        StringBuilder stringBuilder = new StringBuilder();
-        StringBuilder[] stringBuilders = QuickSortUtil.stringBuilders;
-        stringBuilder.append("QuickSort A\n");
-        for(int i = 0; i < stringBuilders.length; i++){
-            if(stringBuilders[i] != null){
-                stringBuilder.append(stringBuilders[i]);
-            }
-        }
-        sortTv.setText(stringBuilder);
-    }
-
-    private void heapSortTest(int[] A) {
-        HeapSortUtil.heapSortTest(A);
-        StringBuilder stringBuilder = new StringBuilder();
-        StringBuilder[] stringBuilders = HeapSortUtil.stringBuilders;
-        stringBuilder.append("HeapSort A\n");
-        for(int i = 0; i < stringBuilders.length; i++){
-            stringBuilder.append(stringBuilders[i]);
-        }
-        sortTv.setText(stringBuilder);
-    }
-
-    private void shellSortTest(int[] A) {
-        ShellSortUtil.shellSortTest(A);
-        StringBuilder stringBuilder = new StringBuilder();
-        StringBuilder[] stringBuilders = ShellSortUtil.stringBuilders;
-        stringBuilder.append("ShellSort A\n");
-        for(int i = 0; i < stringBuilders.length; i++){
-            stringBuilder.append(stringBuilders[i]);
-        }
-        sortTv.setText(stringBuilder);
-    }
-
-    private void bubbleSortTest(int[] A) {
-        BubbleSortUtil.bubbleSortTest(A);
-        StringBuilder stringBuilder = new StringBuilder();
-        StringBuilder[] stringBuilders = BubbleSortUtil.stringBuilders;
-        stringBuilder.append("BubbleSort A\n");
-        for(int i = 0; i < stringBuilders.length; i++){
-            stringBuilder.append(stringBuilders[i]);
-        }
-        sortTv.setText(stringBuilder);
-    }
-
-    private void selectionSortTest(int[] A) {
-        SelectionSortUtil.selectionSortTest(A);
-        StringBuilder stringBuilder = new StringBuilder();
-        StringBuilder[] stringBuilders = SelectionSortUtil.stringBuilders;
-        stringBuilder.append("SelectionSort A\n");
-        for(int i = 0; i < stringBuilders.length; i++){
-            stringBuilder.append(stringBuilders[i]);
-        }
-        sortTv.setText(stringBuilder);
-    }
-
-    private void insertionSortTest(int[] A) {
-        InsertionSortUtil.insertionSortTest(A);
-        StringBuilder stringBuilder = new StringBuilder();
-        StringBuilder[] stringBuilders = InsertionSortUtil.stringBuilders;
-        stringBuilder.append("InsertionSort A\n");
-        for(int i = 0; i < stringBuilders.length; i++){
-            stringBuilder.append(stringBuilders[i]);
-        }
-        sortTv.setText(stringBuilder);
+        algorithmBtn = (Button) findViewById(R.id.algorithm);
+        algorithmBtn.setOnClickListener(this);
     }
 
     @Override
@@ -214,5 +108,16 @@ public class MainActivity extends AppCompatActivity
         DrawerLayout drawer = (DrawerLayout) findViewById(R.id.drawer_layout);
         drawer.closeDrawer(GravityCompat.START);
         return true;
+    }
+
+    @Override
+    public void onClick(View v) {
+        switch(v.getId()){
+            case R.id.algorithm:
+                ActivityUtil.startForwardActivity(MainActivity.this, AlgorithmActivity.class);
+                break;
+            default:
+                break;
+        }
     }
 }

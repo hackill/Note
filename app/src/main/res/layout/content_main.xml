@@ -11,11 +11,22 @@
     app:layout_behavior="@string/appbar_scrolling_view_behavior"
     tools:context="com.vise.note.MainActivity"
     tools:showIn="@layout/app_bar_main">
-
-    <TextView
-        android:id="@+id/insertion_sort"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:textSize="18sp"
-        android:text="Hello World!" />
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:overScrollMode="never"
+        android:scrollbars="none">
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical">
+            <Button
+                android:id="@+id/algorithm"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_margin="@dimen/dimens10"
+                android:text="Algorithm"
+                />
+        </LinearLayout>
+    </ScrollView>
 </RelativeLayout>

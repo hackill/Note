@@ -1,3 +1,6 @@
+#### 前言：
+本文主要描述Android BLE的一些基础知识及相关操作流程，不牵扯具体的业务实现，其中提供了针对广播包及响应包的解析思路，希望对正在或即将面临Android BLE开发的伙伴们有所引导。
+注：其中的单模、双模、BR、BT、BLE、蓝牙3.0、蓝牙4.0等概念混在一起可能比较难理解，不知下文描述是否清晰，如果啥问题，欢迎留言交流！
 #### 一、相关介绍
 ##### 1、概述
 蓝牙无线技术是一种全球通用的短距离无线技术，通过蓝牙技术能够实现多种电子设备间的相互连接，特别是在小型无线电、耗电量低、成本低、安全性、稳定性、易用性以及特别的联网能力等固有的优势上，蓝牙无线技术发展迅速。
@@ -7,114 +10,127 @@
 ##### 3、BLE介绍
 BLE是Bluetooth Low Energy的缩写，又叫蓝牙4.0，区别于蓝牙3.0和之前的技术。BLE前身是NOKIA开发的Wibree技术，主要用于实现移动智能终端与周边配件之间的持续连接，是功耗极低的短距离无线通信技术，并且有效传输距离被提升到了100米以上，同时只需要一颗纽扣电池就可以工作数年之久。BLE是在蓝牙技术的基础上发展起来的，既同于蓝牙，又区别于传统蓝牙。BLE设备分单模和双模两种，双模简称BR，商标为Bluetooth Smart Ready，单模简称BLE或者LE,商标为Bluetooth Smart。Android是在4.3后才支持BLE，这说明不是所有蓝牙手机都支持BLE，而且支持BLE的蓝牙手机一般是双模的。双模兼容传统蓝牙，可以和传统蓝牙通信，也可以和BLE通信，常用在手机上，android4.3和IOS4.0之后版本都支持BR，也就是双模设备。单模只能和BR和单模的设备通信，不能和传统蓝牙通信，由于功耗低，待机长，所以常用在手环的智能设备上。
  
-#### 二、基本概念及相关API
-BluetoothManager
-BluetoothAdapter 代表了移动设备的本地的蓝牙适配器, 通过该蓝牙适配器可以对蓝牙进行基本操作
-BluetoothDevice 代表一个蓝牙设备，由BluetoothAdapter调用搜索得到
-BluetoothGatt 代表蓝牙设备的一个连接断开的生命周期
-BluetoothGattService 一个蓝牙设备包含N个BluetoothGattService，表示蓝牙的一组能力的集合
-BluetoothGattCharacteristic 一个serveice包含N个Characteristic，表示蓝牙设备的一个能力
-BluetoothGattDescriptor 一个Characteristic包含N个Descriptor，表示一个能力的其中一个属性
-BluetoothGattCallback 所有蓝牙连接断开过程中发生的事情都在这个回调中返回
-UUID 每个Service，Characteristic，Descriptor，都是由一个UUID定义
-
-1.1 BluetoothGatt
- 
-继承BluetoothProfile，通过BluetoothGatt可以连接设备（connect）,发现服务（discoverServices），并把相应地属性返回到BluetoothGattCallback 
- 
-1.2 BluetoothGattCharacteristic
- 
-相当于一个数据类型，它包括一个value和0~n个value的描述（BluetoothGattDescriptor）
- 
-1.3 BluetoothGattDescriptor
- 
-描述符，对Characteristic的描述，包括范围、计量单位等
- 
-1.4 BluetoothGattService
- 
-服务，Characteristic的集合。
- 
-1.5 BluetoothProfile
- 
- 一个通用的规范，按照这个规范来收发数据。
- 
-1.6 BluetoothManager
- 
- 通过BluetoothManager来获取BluetoothAdapter
- 
- 
-BluetoothManager bluetoothManager = (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
-1.7 BluetoothAdapter
- 
-一个Android系统只有一个BluetoothAdapter ，通过BluetoothManager 获取
- 
-BluetoothAdapter mBluetoothAdapter = bluetoothManager.getAdapter();
-1.8 BluetoothGattCallback
- 
-已经连接上设备，对设备的某些操作后返回的结果。这里必须提醒下，已经连接上设备后的才可以返回，没有返回的认真看看有没有连接上设备。
- 
- 
-private BluetoothGattCallback GattCallback = new BluetoothGattCallback() {
-    // 这里有9个要实现的方法，看情况要实现那些，用到那些就实现那些
-    public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState){};
-    public void onCharacteristicWrite(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status){};
-};
-BluetoothDevice device = mBluetoothAdapter.getRemoteDevice(address);
-BluetoothGatt gatt = device.connectGatt(this, false, mGattCallback);
-1.8.1:notification对应onCharacteristicChanged；
- 
- 
-gatt.setCharacteristicNotification(characteristic, true);
-1.8.2:readCharacteristic对应onCharacteristicRead；
- 
- 
-gatt.readCharacteristic(characteristic);
-1.8.3: writeCharacteristic对应onCharacteristicWrite；
- 
- 
-gatt.wirteCharacteristic(mCurrentcharacteristic);
-1.8.4:连接蓝牙或者断开蓝牙 对应 onConnectionStateChange；
- 
-1.8.5: readDescriptor对应onDescriptorRead；
- 
-1.8.6:writeDescriptor对应onDescriptorWrite；
- 
- 
-gatt.writeDescriptor(descriptor);
-1.8.7:readRemoteRssi对应onReadRemoteRssi；
- 
- 
-gatt.readRemoteRssi()
-1.8.8:executeReliableWrite对应onReliableWriteCompleted；
- 
-1.8.9:discoverServices对应onServicesDiscovered。
- 
-gatt.discoverServices()
-1.9 BluetoothDevice
- 
-扫描后发现可连接的设备，获取已经连接的设备
-
-GAP（Generic Access Profile），它在用来控制设备连接和广播。GAP 使你的设备被其他设备可见，并决定了你的设备是否可以或者怎样与合同设备进行交互。
-
-Generic Attribute Profile (GATT)
-
-通过BLE连接，读写属性类小数据的Profile通用规范。现在所有的BLE应用Profile都是基于GATT的。
-
-Attribute Protocol (ATT)
-
-GATT是基于ATTProtocol的。ATT针对BLE设备做了专门的优化，具体就是在传输过程中使用尽量少的数据。每个属性都有一个唯一的UUID，属性将以characteristics and services的形式传输。
-
-Characteristic
-
+#### 二、基本概念
+##### 1、Generic Access Profile(GAP)
+它在用来控制设备连接和广播，GAP使你的设备被其他设备可见，并决定了你的设备是否可以或者怎样与合同设备进行交互。
+##### 2、Generic Attribute Profile(GATT)
+通过BLE连接，读写属性类小数据的Profile通用规范，现在所有的BLE应用Profile都是基于GATT的。
+##### 3、Attribute Protocol (ATT)
+GATT是基于ATTProtocol的，ATT针对BLE设备做了专门的优化，具体就是在传输过程中使用尽量少的数据，每个属性都有一个唯一的UUID，属性将以characteristics and services的形式传输。
+##### 4、Characteristic
 Characteristic可以理解为一个数据类型，它包括一个value和0至多个对次value的描述（Descriptor）。
-
-Descriptor
-
+##### 5、Descriptor
 对Characteristic的描述，例如范围、计量单位等。
+##### 6、Service
+Characteristic的集合。例如一个service叫做“Heart Rate Monitor”，它可能包含多个Characteristics，其中可能包含一个叫做“heart ratemeasurement"的Characteristic。
+##### 7、UUID
+唯一标示符，每个Service，Characteristic，Descriptor，都是由一个UUID定义。
 
-Service
+#### 三、Android BLE API
+##### 1、BluetoothGatt
+继承BluetoothProfile，通过BluetoothGatt可以连接设备（connect）,发现服务（discoverServices），并把相应地属性返回到BluetoothGattCallback，可以看成蓝牙设备从连接到断开的生命周期。
+##### 2、BluetoothGattCharacteristic
+相当于一个数据类型，可以看成一个特征或能力，它包括一个value和0~n个value的描述（BluetoothGattDescriptor）。
+##### 3、BluetoothGattDescriptor
+描述符，对Characteristic的描述，包括范围、计量单位等。
+##### 4、BluetoothGattService
+服务，Characteristic的集合。
+##### 5、BluetoothProfile
+一个通用的规范，按照这个规范来收发数据。
+##### 6、BluetoothManager
+通过BluetoothManager来获取BluetoothAdapter。
+`BluetoothManager bluetoothManager = (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);`
+##### 7、BluetoothAdapter
+代表了移动设备的本地的蓝牙适配器, 通过该蓝牙适配器可以对蓝牙进行基本操作，一个Android系统只有一个BluetoothAdapter，通过BluetoothManager获取。
+`BluetoothAdapter bluetoothAdapter = bluetoothManager.getAdapter();`
+##### 8、BluetoothDevice
+扫描后发现可连接的设备，获取已经连接的设备。
+`BluetoothDevice bluetoothDevice = bluetoothAdapter.getRemoteDevice(address);`
+##### 9、BluetoothGattCallback
+已经连接上设备，对设备的某些操作后返回的结果。
+```
+BluetoothGattCallback bluetoothGattCallback = new BluetoothGattCallback(){
+    @Override
+    public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
+        super.onConnectionStateChange(gatt, status, newState);
+    }
 
-Characteristic的集合。例如一个service叫做“Heart Rate Monitor”，它可能包含多个Characteristics，其中可能包含一个叫做“heart ratemeasurement"的Characteristic。一个手环可能
+    @Override
+    public void onServicesDiscovered(BluetoothGatt gatt, int status) {
+        super.onServicesDiscovered(gatt, status);
+    }
+
+    @Override
+    public void onCharacteristicRead(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
+        super.onCharacteristicRead(gatt, characteristic, status);
+    }
+
+    @Override
+    public void onCharacteristicWrite(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
+        super.onCharacteristicWrite(gatt, characteristic, status);
+    }
+
+    @Override
+    public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
+        super.onCharacteristicChanged(gatt, characteristic);
+    }
+
+    @Override
+    public void onDescriptorRead(BluetoothGatt gatt, BluetoothGattDescriptor descriptor, int status) {
+        super.onDescriptorRead(gatt, descriptor, status);
+    }
+
+    @Override
+    public void onDescriptorWrite(BluetoothGatt gatt, BluetoothGattDescriptor descriptor, int status) {
+        super.onDescriptorWrite(gatt, descriptor, status);
+    }
+
+    @Override
+    public void onReliableWriteCompleted(BluetoothGatt gatt, int status) {
+        super.onReliableWriteCompleted(gatt, status);
+    }
+
+    @Override
+    public void onReadRemoteRssi(BluetoothGatt gatt, int rssi, int status) {
+        super.onReadRemoteRssi(gatt, rssi, status);
+    }
+
+    @Override
+    public void onMtuChanged(BluetoothGatt gatt, int mtu, int status) {
+        super.onMtuChanged(gatt, mtu, status);
+    }
+};
+BluetoothGatt bluetoothGatt = bluetoothDevice.connectGatt(this, false, bluetoothGattCallback);
+
+//notification to onCharacteristicChanged；
+bluetoothGatt.setCharacteristicNotification(characteristic, true);
+
+//readCharacteristic to onCharacteristicRead；
+bluetoothGatt.readCharacteristic(characteristic);
+
+//writeCharacteristic to onCharacteristicWrite；
+bluetoothGatt.wirteCharacteristic(mCurrentcharacteristic);
+
+//connect and disconnect to onConnectionStateChange；
+bluetoothGatt.connect();
+bluetoothGatt.disconnect();
+
+//readDescriptor to onDescriptorRead；
+bluetoothGatt.readDescriptor(descriptor);
+
+//writeDescriptor to onDescriptorWrite；
+bluetoothGatt.writeDescriptor(descriptor);
+
+//readRemoteRssi to onReadRemoteRssi；
+bluetoothGatt.readRemoteRssi();
+
+//executeReliableWrite to onReliableWriteCompleted；
+bluetoothGatt.executeReliableWrite();
+
+//discoverServices to onServicesDiscovered;
+bluetoothGatt.discoverServices();
+
+```
 
 #### 三、操作流程
 

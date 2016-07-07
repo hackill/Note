@@ -1,6 +1,6 @@
 #### 前言：
 本文主要描述Android BLE的一些基础知识及相关操作流程，不牵扯具体的业务实现，其中提供了针对广播包及响应包的解析思路，希望对正在或即将面临Android BLE开发的伙伴们有所引导。
-注：其中的单模、双模、BR、BT、BLE、蓝牙3.0、蓝牙4.0等概念混在一起可能比较难理解，不知下文描述是否清晰，如果啥问题，欢迎留言交流！
+注：其中的单模、双模、BR、BT、BLE、蓝牙3.0、蓝牙4.0等概念混在一起可能比较难理解，不知下文描述是否清晰，如果有不理解的地方，欢迎留言交流！
 #### 一、相关介绍
 ##### 1、概述
 蓝牙无线技术是一种全球通用的短距离无线技术，通过蓝牙技术能够实现多种电子设备间的相互连接，特别是在小型无线电、耗电量低、成本低、安全性、稳定性、易用性以及特别的联网能力等固有的优势上，蓝牙无线技术发展迅速。
@@ -12,9 +12,9 @@ BLE是Bluetooth Low Energy的缩写，又叫蓝牙4.0，区别于蓝牙3.0和之
  
 #### 二、基本概念
 ##### 1、Generic Access Profile(GAP)
-它在用来控制设备连接和广播，GAP使你的设备被其他设备可见，并决定了你的设备是否可以或者怎样与合同设备进行交互。
+用来控制设备连接和广播，GAP使你的设备被其他设备可见，并决定了你的设备是否可以或者怎样与合同设备进行交互。
 ##### 2、Generic Attribute Profile(GATT)
-通过BLE连接，读写属性类小数据的Profile通用规范，现在所有的BLE应用Profile都是基于GATT的。
+通过BLE连接，读写属性类数据的Profile通用规范，现在所有的BLE应用Profile都是基于GATT的。
 ##### 3、Attribute Protocol (ATT)
 GATT是基于ATTProtocol的，ATT针对BLE设备做了专门的优化，具体就是在传输过程中使用尽量少的数据，每个属性都有一个唯一的UUID，属性将以characteristics and services的形式传输。
 ##### 4、Characteristic
@@ -49,6 +49,85 @@ Characteristic的集合。例如一个service叫做“Heart Rate Monitor”，�
 ##### 9、BluetoothGattCallback
 已经连接上设备，对设备的某些操作后返回的结果。
 ```
+BluetoothGattCallback bluetoothGattCallback = new BluetoothGattCallback(){
+	//实现回调方法，根据业务做相应处理
+};
+BluetoothGatt bluetoothGatt = bluetoothDevice.connectGatt(this, false, bluetoothGattCallback);
+
+```
+
+#### 三、操作流程
+##### 1、蓝牙开启
+在使用蓝牙BLE之前，需要确认Android设备是否支持BLE feature(required为false时)，另外要需要确认蓝牙是否打开。如果发现不支持BLE，则不能使用BLE相关的功能；如果支持BLE，但是蓝牙没打开，则需要打开蓝牙。代码示例如下：
+```
+//是否支持蓝牙模块
+@TargetApi(18)
+public static boolean isSupportBle(Context context) {
+    if(context != null && context.getPackageManager().hasSystemFeature("android.hardware.bluetooth_le")) {
+        BluetoothManager manager = (BluetoothManager)context.getSystemService("bluetooth");
+        return manager.getAdapter() != null;
+    } else {
+        return false;
+    }
+}
+//是否开启蓝牙
+@TargetApi(18)
+public static boolean isBleEnable(Context context) {
+    if(!isSupportBle(context)) {
+        return false;
+    } else {
+        BluetoothManager manager = (BluetoothManager)context.getSystemService("bluetooth");
+        return manager.getAdapter().isEnabled();
+    }
+}
+//开启蓝牙
+public static void enableBle(Activity act, int requestCode) {
+    Intent mIntent = new Intent("android.bluetooth.adapter.action.REQUEST_ENABLE");
+    act.startActivityForResult(mIntent, requestCode);
+}
+//蓝牙开启过程
+if(isSupportBle(mContext)){
+	//支持蓝牙模块
+    if(!isBleEnable(mContext)){
+    	//没开启蓝牙则开启
+    	enableBle(mSelfActivity, 1);
+    }
+} else{
+	//不支持蓝牙模块处理
+}
+//蓝牙开启回调
+@Override
+protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+	//判断requestCode是否为开启蓝牙时传进去的值，再做相应处理
+    if(requestCode == 1){
+    	//蓝牙开启成功后的处理
+    }
+    super.onActivityResult(requestCode, resultCode, data);
+}
+```
+
+##### 2、设备搜索
+- BluetoothAdapter.startDiscovery在大多数手机上是可以同时发现经典蓝牙和Ble的，但是startDiscovery的回调无法返回Ble的广播，所以无法通过广播识别设备，且startDiscovery扫描Ble的效率比StartLeScan低很多。所以在实际应用中，还是StartDiscovery和StartLeScan分开扫，前者扫传统蓝牙，后者扫低功耗蓝牙。
+
+- 由于搜索需要尽量减少功耗，因此在实际使用时需要注意：当找到对应的设备后，立即停止扫描；不要循环搜索设备，为每次搜索设置适合的时间限制，避免设备不在可用范围的时候持续不停扫描，消耗电量。
+
+- 通过调用BluetoothAdapter的 startLeScan() 搜索BLE设备。调用此方法时需要传入  BluetoothAdapter.LeScanCallback 参数。具体代码示例如下：
+```
+BluetoothManager bluetoothManager = (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
+BluetoothAdapter bluetoothAdapter = bluetoothManager.getAdapter();
+bluetoothAdapter.startLeScan(new BluetoothAdapter.LeScanCallback() {
+    @Override
+    public void onLeScan(BluetoothDevice device, int rssi, byte[] scanRecord) {
+		//对扫描到的设备进行处理，可以依据BluetoothDevice中的信息、信号强度rssi以及广播包和响应包组成的scanRecord字节数组进行分析
+    }
+});
+```
+
+##### 3、设备通信
+两个设备通过BLE通信，首先需要建立GATT连接，这里我们讲的是Android设备作为client端，连接GATT Server。连接GATT Server，需要调用BluetoothDevice的connectGatt()方法，此函数带三个参数：Context、autoConnect(boolean)和 BluetoothGattCallback 对象。调用后返回BluetoothGatt对象，它是GATT profile的封装，通过这个对象，我们就能进行GATT Client端的相关操作。如断开连接`bluetoothGatt.disconnect()`，断开服务`bluetoothGatt.discoverServices()`等等。示例代码如下：
+
+```
+BluetoothDevice bluetoothDevice = bluetoothAdapter.getRemoteDevice(address);
 BluetoothGattCallback bluetoothGattCallback = new BluetoothGattCallback(){
     @Override
     public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
@@ -102,6 +181,7 @@ BluetoothGattCallback bluetoothGattCallback = new BluetoothGattCallback(){
 };
 BluetoothGatt bluetoothGatt = bluetoothDevice.connectGatt(this, false, bluetoothGattCallback);
 
+//以下为获得Gatt后的相关操作对应的响应方法
 //notification to onCharacteristicChanged；
 bluetoothGatt.setCharacteristicNotification(characteristic, true);
 
@@ -129,225 +209,133 @@ bluetoothGatt.executeReliableWrite();
 
 //discoverServices to onServicesDiscovered;
 bluetoothGatt.discoverServices();
-
 ```
 
-#### 三、操作流程
-
-4、启动蓝牙：
-
-在使用蓝牙BLE之前，需要确认Android设备是否支持BLE feature(required为false时)，另外要需要确认蓝牙是否打开。
-
-如果发现不支持BLE，则不能使用BLE相关的功能。如果支持BLE，但是蓝牙没打开，则需要打开蓝牙。
-
-打开蓝牙的步骤：
-
-1、获取BluetoothAdapter
-
-BluetoothAdapter是Android系统中所有蓝牙操作都需要的，它对应本地Android设备的蓝牙模块，在整个系统中BluetoothAdapter是单例的。当你获取到它的示例之后，就能进行相关的蓝牙操作了。
-
-获取BluetoothAdapter代码示例如下：
-
-// Initializes Bluetooth adapter.
-
-final BluetoothManager bluetoothManager =
-
-(BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
-
-mBluetoothAdapter = bluetoothManager.getAdapter();
-
-注：这里通过getSystemService获取BluetoothManager，再通过BluetoothManager获取BluetoothAdapter。BluetoothManager在Android4.3以上支持(API level 18)。
-
-2、判断是否支持蓝牙，并打开蓝牙
-
-获取到BluetoothAdapter之后，还需要判断是否支持蓝牙，以及蓝牙是否打开。
-
-如果没打开，需要让用户打开蓝牙：
-
-private BluetoothAdapter mBluetoothAdapter;
-
-...
-
-// Ensures Bluetooth is available on the device and it is enabled. If not,
-
-// displays a dialog requesting user permission to enable Bluetooth.
-
-if (mBluetoothAdapter == null || !mBluetoothAdapter.isEnabled()) {
-
-Intent enableBtIntent = newIntent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
-
-startActivityForResult(enableBtIntent, REQUEST_ENABLE_BT);
-
-}
-
-5、搜索BLE设备：
-
-通过调用BluetoothAdapter的 startLeScan() 搜索BLE设备。调用此方法时需要传入  BluetoothAdapter.LeScanCallback 参数。
-
-因此你需要实现 BluetoothAdapter.LeScanCallback 接口，BLE设备的搜索结果将通过这个callback返回。
-
-由于搜索需要尽量减少功耗，因此在实际使用时需要注意：
-
-1、当找到对应的设备后，立即停止扫描；
-
-2、不要循环搜索设备，为每次搜索设置适合的时间限制。避免设备不在可用范围的时候持续不停扫描，消耗电量。
-
-搜索的示例代码如下：
-
-/**
- * Activity for scanning and displaying available BLE devices.
- */
-public class DeviceScanActivity extends ListActivity {
-
-  private BluetoothAdapter mBluetoothAdapter;
-  private boolean mScanning;
-  private Handler mHandler;
-
-  // Stops scanning after 10 seconds.
-  private static final long SCAN_PERIOD = 10000;
-  ...
-  private void scanLeDevice(final boolean enable) {
-    if (enable) {
-      // Stops scanning after a pre-defined scan period.
-      mHandler.postDelayed(new Runnable() {
-        @Override
-        public void run() {
-          mScanning = false;
-          mBluetoothAdapter.stopLeScan(mLeScanCallback);
-        }
-      }, SCAN_PERIOD);
-
-      mScanning = true;
-      mBluetoothAdapter.startLeScan(mLeScanCallback);
-    } else {
-      mScanning = false;
-      mBluetoothAdapter.stopLeScan(mLeScanCallback);
-    }
-    
-  }
-
-}
-如果你只需要搜索指定UUID的外设，你可以调用 startLeScan(UUID[], BluetoothAdapter.LeScanCallback) 方法。
-
-其中UUID数组指定你的应用程序所支持的GATT Services的UUID。
-
-BluetoothAdapter.LeScanCallback 的实现示例如下：
-
-private LeDeviceListAdapter mLeDeviceListAdapter;
-...
-// Device scan callback.
-private BluetoothAdapter.LeScanCallback mLeScanCallback =
-  new BluetoothAdapter.LeScanCallback() {
-    @Override
-    public void onLeScan(final BluetoothDevice device, int rssi,
-      byte[] scanRecord) {
-  runOnUiThread(new Runnable() {
-     @Override
-     public void run() {
-         mLeDeviceListAdapter.addDevice(device);
-         mLeDeviceListAdapter.notifyDataSetChanged();
-     }
-       });
-   }
-};
-注意：搜索时，你只能搜索传统蓝牙设备或者BLE设备，两者完全独立，不可同时被搜索。
-
-6、连接GATTServer：
-
-两个设备通过BLE通信，首先需要建立GATT连接。这里我们讲的是Android设备作为client端，连接GATT Server。
-
-连接GATT Server，你需要调用BluetoothDevice的 connectGatt() 方法。此函数带三个参数：Context、autoConnect(boolean)和 BluetoothGattCallback 对象。调用示例：
-
-mBluetoothGatt = device.connectGatt(this, false,mGattCallback);
-
-函数成功，返回 BluetoothGatt 对象，它是GATT profile的封装。通过这个对象，我们就能进行GATT Client端的相关操作。 BluetoothGattCallback 用于传递一些连接状态及结果。
-
-BluetoothGatt常规用到的几个操作示例:
-
-connect() ：连接远程设备。
-
-discoverServices() : 搜索连接设备所支持的service。
-
-disconnect()：断开与远程设备的GATT连接。
-
-close()：关闭GATTClient端。
-
-readCharacteristic(characteristic) ：读取指定的characteristic。
-
-setCharacteristicNotification(characteristic, enabled)：设置当指定characteristic值变化时，发出通知。
-
-getServices() ：获取远程设备所支持的services。
-
-等等。
-
 #### 四、数据解析
+- BLE中有两种角色Central和Peripheral，也就是中心设备和外围设备，中心设备可以主动连接外围设备，外围设备发送广播或者被中心设备连接，外围通过广播被中心设备发现，广播中带有外围设备自身的相关信息。
 
-GAP 给设备定义了若干角色，其中主要的两个是：外围设备（Peripheral）和中心设备（Central）。
-
-外围设备：这一般就是非常小或者简单的低功耗设备，用来提供数据，并连接到一个更加相对强大的中心设备。例如小米手环。
-中心设备：中心设备相对比较强大，用来连接其他外围设备。例如手机等。
-在 GAP 中外围设备通过两种方式向外广播数据： Advertising Data Payload（广播数据）和 Scan Response Data Payload（扫描回复），每种数据最长可以包含 31 byte。这里广播数据是必需的，因为外设必需不停的向外广播，让中心设备知道它的存在。扫描回复是可选的，中心设备可以向外设请求扫描回复，这里包含一些设备额外的信息，例如设备的名字。
-
-BLE 中有两种角色 Central 和 Peripheral，也就是中心设备和外围设备。中心设备可以主动连接外围设备，外围设备发送广播或者被中心设备连接。外围通过广播被中心设备发现，广播中带有外围设备自身的相关信息。
+- 数据包有两种：广播包（Advertising Data）和响应包（Scan Response），其中广播包是每个设备必须广播的，而响应包是可选的。数据包的格式如下图所示（图片来自官方 Spec）：
 ![](http://jlog.qiniudn.com/ble-adv-data-fromat.jpg)
-广播包有两种：广播包（Advertising Data）和响应包（Scan Response），其中广播包是每个设备必须广播的，而响应包是可选的。 数据包的格式如下图所示（图片来自官方 Spec）： data format 每个包都是 31 字节，数据包中分为有效数据（significant）和无效数据（non-significant）两部分。
+每个包都是 31 字节，数据包中分为有效数据（significant）和无效数据（non-significant）两部分。
 
-有效数据部分：包含若干个广播数据单元，称为 AD Structure。如图中所示，AD Structure 的组成是：第一个字节是长度值 Len，表示接下来的 Len 个字节是数据部分。数据部分的第一个字节表示数据的类型 AD Type，剩下的 Len - 1 个字节是真正的数据 AD data。其中 AD type 非常关键，决定了 AD Data 的数据代表的是什么和怎么解析，这个在后面会详细讲；
-无效数据部分：因为广播包的长度必须是 31 个 byte，如果有效数据部分不到 31 自己，剩下的就用 0 补全。这部分的数据是无效的，解释的时候，忽略即可。
-广播数据格式
-所有的 AD type 的定义在文档 ​Core Specification Supplement 中。 AD Type 包括如下类型：
+- 有效数据部分：包含若干个广播数据单元，称为AD Structure。如图中所示，AD Structure的组成是：第一个字节是长度值Len，表示接下来的Len个字节是数据部分。数据部分的第一个字节表示数据的类型AD Type，剩下的Len - 1个字节是真正的数据AD data。其中AD type非常关键，决定了AD Data的数据代表的是什么和怎么解析，这个在后面会详细讲；
 
-Flags: TYPE = 0x01。这个数据用来标识设备 LE 物理连接的功能。DATA 是 0 到多个字节的 Flag 值，每个 bit 上用 0 或者 1 来表示是否为 True。如果有任何一个 bit 不为 0，并且广播包是可连接的，就必须包含此数据。各 bit 的定义如下：
+- 无效数据部分：因为广播包的长度必须是31字节，如果有效数据部分不到31字节，剩下的就用0补齐，这部分的数据是无效的，解析的时候，直接忽略即可。
 
-bit 0: LE 有限发现模式
-bit 1: LE 普通发现模式
-bit 2: 不支持 BR/EDR
-bit 3: 对 Same Device Capable(Controller) 同时支持 BLE 和 BR/EDR
-bit 4: 对 Same Device Capable(Host) 同时支持 BLE 和 BR/EDR
+- 查看Nordic的SDK中的定义，AD type的定义在程序的“ble_gap.h”头文件中。定义如下：
+```
+#define BLE_GAP_AD_TYPE_FLAGS                               0x01 //< Flags for discoverability. 
+#define BLE_GAP_AD_TYPE_16BIT_SERVICE_UUID_MORE_AVAILABLE   0x02 //< Partial list of 16 bit service UUIDs. 
+#define BLE_GAP_AD_TYPE_16BIT_SERVICE_UUID_COMPLETE         0x03 //< Complete list of 16 bit service UUIDs.  
+#define BLE_GAP_AD_TYPE_32BIT_SERVICE_UUID_MORE_AVAILABLE   0x04 //< Partial list of 32 bit service UUIDs.  
+#define BLE_GAP_AD_TYPE_32BIT_SERVICE_UUID_COMPLETE         0x05 //< Complete list of 32 bit service UUIDs. 
+#define BLE_GAP_AD_TYPE_128BIT_SERVICE_UUID_MORE_AVAILABLE  0x06 //< Partial list of 128 bit service UUIDs.  
+#define BLE_GAP_AD_TYPE_128BIT_SERVICE_UUID_COMPLETE        0x07 //< Complete list of 128 bit service UUIDs. 
+#define BLE_GAP_AD_TYPE_SHORT_LOCAL_NAME                    0x08 //< Short local device name. 
+#define BLE_GAP_AD_TYPE_COMPLETE_LOCAL_NAME                 0x09 //< Complete local device name. 
+#define BLE_GAP_AD_TYPE_TX_POWER_LEVEL                      0x0A //< Transmit power level. 
+#define BLE_GAP_AD_TYPE_CLASS_OF_DEVICE                     0x0D //< Class of device. 
+#define BLE_GAP_AD_TYPE_SIMPLE_PAIRING_HASH_C               0x0E //< Simple Pairing Hash C. 
+#define BLE_GAP_AD_TYPE_SIMPLE_PAIRING_RANDOMIZER_R         0x0F //< Simple Pairing Randomizer R. 
+#define BLE_GAP_AD_TYPE_SECURITY_MANAGER_TK_VALUE           0x10 //< Security Manager TK Value. 
+#define BLE_GAP_AD_TYPE_SECURITY_MANAGER_OOB_FLAGS          0x11 //< Security Manager Out Of Band Flags. 
+#define BLE_GAP_AD_TYPE_SLAVE_CONNECTION_INTERVAL_RANGE     0x12 //< Slave Connection Interval Range. 
+#define BLE_GAP_AD_TYPE_SOLICITED_SERVICE_UUIDS_16BIT       0x14 //< List of 16-bit Service Solicitation UUIDs. 
+#define BLE_GAP_AD_TYPE_SOLICITED_SERVICE_UUIDS_128BIT      0x15 //< List of 128-bit Service Solicitation UUIDs. 
+#define BLE_GAP_AD_TYPE_SERVICE_DATA                        0x16 //< Service Data - 16-bit UUID. 
+#define BLE_GAP_AD_TYPE_PUBLIC_TARGET_ADDRESS               0x17 //< Public Target Address. 
+#define BLE_GAP_AD_TYPE_RANDOM_TARGET_ADDRESS               0x18 //< Random Target Address. 
+#define BLE_GAP_AD_TYPE_APPEARANCE                          0x19 //< Appearance. 
+#define BLE_GAP_AD_TYPE_ADVERTISING_INTERVAL                0x1A //< Advertising Interval.  
+#define BLE_GAP_AD_TYPE_LE_BLUETOOTH_DEVICE_ADDRESS         0x1B //< LE Bluetooth Device Address. 
+#define BLE_GAP_AD_TYPE_LE_ROLE                             0x1C //< LE Role. 
+#define BLE_GAP_AD_TYPE_SIMPLE_PAIRING_HASH_C256            0x1D //< Simple Pairing Hash C-256. 
+#define BLE_GAP_AD_TYPE_SIMPLE_PAIRING_RANDOMIZER_R256      0x1E //< Simple Pairing Randomizer R-256. 
+#define BLE_GAP_AD_TYPE_SERVICE_DATA_32BIT_UUID             0x20 //< Service Data - 32-bit UUID. 
+#define BLE_GAP_AD_TYPE_SERVICE_DATA_128BIT_UUID            0x21 //< Service Data - 128-bit UUID. 
+#define BLE_GAP_AD_TYPE_3D_INFORMATION_DATA                 0x3D //< 3D Information Data.
+#define BLE_GAP_AD_TYPE_MANUFACTURER_SPECIFIC_DATA          0xFF //< Manufacturer Specific Data. 
+```
+
+- 所有的 AD Type 的定义在文档[Core Specification Supplement](https://www.bluetooth.com/specifications/adopted-specifications)中。根据上面头文件中的定义，AD Type包括如下类型：
+1、TYPE = 0x01：标识设备LE物理连接的功能，占一个字节，各bit为1时定义如下：
+```
+bit 0: LE有限发现模式
+bit 1: LE普通发现模式
+bit 2: 不支持BR/EDR
+bit 3: 对Same Device Capable(Controller)同时支持BLE和BR/EDR
+bit 4: 对Same Device Capable(Host)同时支持BLE和BR/EDR
 bit 5..7: 预留
-Service UUID: 广播数据中一般都会把设备支持的 GATT Service 广播出来，用来告诉外面本设备所支持的 Service。有三种类型的 UUID：16 bit, 32bit, 128 bit。广播中，每种类型类型有有两个类别：完整和非完整的。这样就共有 6 种 AD Type。
+```
+2、TYPE = 0x02：非完整的16 bit UUID列表
+3、TYPE = 0x03：完整的16 bit UUID列表
+4、TYPE = 0x04：非完整的32 bit UUID列表
+5、TYPE = 0x05：完整的32 bit UUID列表
+6、TYPE = 0x06：非完整的128 bit UUID列表
+7、TYPE = 0x07：完整的128 bit UUID列表
+8、TYPE = 0x08：设备简称
+9、TYPE = 0x09：设备全名
+10、TYPE = 0x0A：表示设备发送广播包的信号强度
+11、TYPE = 0x0D：设备类别
+12、TYPE = 0x0E：设备配对的Hash值
+13、TYPE = 0x0F：设备配对的随机值
+14、TYPE = 0x10：TK安全管理（Security Manager TK Value）
+15、TYPE = 0x11：带外安全管理（Security Manager Out of Band），各bit定义如下：
+```
+bit 0: OOB Flag，0-表示没有OOB数据，1-表示有
+bit 1: 支持LE
+bit 2: 对Same Device Capable(Host)同时支持BLE和BR/EDR
+bit 3: 地址类型，0-表示公开地址，1-表示随机地址
+```
+16、TYPE = 0x12：外设（Slave）连接间隔范围，数据中定义了Slave最大和最小连接间隔，数据包含4个字节：前两字节定义最小连接间隔，取值范围：0x0006 ~ 0x0C80，而0xFFFF表示未定义；后两字节，定义最大连接间隔，取值范围同上，不过需要保证最大连接间隔大于或者等于最小连接间隔。
+17、TYPE = 0x14：服务搜寻16 bit UUID列表
+18、TYPE = 0x15：服务搜寻128 bit UUID列表
+19、TYPE = 0x16：16 bit UUID Service，前两个字节是UUID，后面是Service的数据
+20、TYPE = 0x17：公开目标地址，表示希望这个广播包被指定的目标设备处理，此设备绑定了公开地址
+21、TYPE = 0x18：随机目标地址，表示希望这个广播包被指定的目标设备处理，此设备绑定了随机地址
+22、TYPE = 0x19：表示设备的外观
+23、TYPE = 0x1A：广播区间
+24、TYPE = 0x1B：LE设备地址
+25、TYPE = 0x1C：LE设备角色
+26、TYPE = 0x1D：256位设备配对的Hash值
+27、TYPE = 0x1E：256位设备配对的随机值
+28、TYPE = 0x20：32 bit UUID Service，前4个字节是UUID，后面是Service的数据
+29、TYPE = 0x21：128 bit UUID Service，前16个字节是UUID，后面是Service的数据
+30、TYPE = 0x3D：3D信息数据
+31、TYPE = 0xFF：厂商自定义数据，厂商自定义的数据中，前两个字节表示厂商ID，剩下的是厂商自己按照需求添加，里面的数据内容自己定义。
 
-非完整的 16 bit UUID 列表： TYPE = 0x02;
-完整的 16 bit UUID 列表： TYPE = 0x03;
-非完整的 32 bit UUID 列表： TYPE = 0x04;
-完整的 32 bit UUID 列表： TYPE = 0x05;
-非完整的 128 bit UUID 列表： TYPE = 0x06;
-完整的 128 bit UUID 列表： TYPE = 0x07;
-Local Name: 设备名字，DATA 是名字的字符串。Local Name 可以是设备的全名，也可以是设备名字的缩写，其中缩写必须是全名的前面的若干字符。
-
-设备全名： TYPE = 0x08
-设备简称： TYPE = 0x09
-TX Power Level: TYPE = 0x0A，表示设备发送广播包的信号强度。DATA 部分是一个字节，表示 -127 到 + 127 dBm。
-
-带外安全管理（Security Manager Out of Band）：TYPE = 0x11。DATA 也是 Flag，每个 bit 表示一个功能：
-
-bit 0: OOB Flag，0 表示没有 OOB 数据，1 表示有
-bit 1: 支持 LE
-bit 2: 对 Same Device Capable(Host) 同时支持 BLE 和 BR/EDR
-bit 3: 地址类型，0 表示公开地址，1 表示随机地址
-外设（Slave）连接间隔范围：TYPE = 0x12。数据中定义了 Slave 最大和最小连接间隔，数据包含 4 个字节：
-
-前 2 字节：定义最小连接间隔，取值范围：0x0006 ~ 0x0C80，而 0xFFFF 表示未定义；
-后 2 字节：定义最大连接间隔，同上，不过需要保证最大连接间隔大于或者等于最小连接间隔。
-服务搜寻：外围设备可以要请中心设备提供相应的 Service。其数据定义和前面的 Service UUID 类似：
-
-16 bit UUID 列表： TYPE = 0x14
-32 bit UUID 列表： TYPE = 0x??
-128 bit UUID 列表： TYPE = 0x15
-Service Data: Service 对应的数据。
-
-16 bit UUID Service: TYPE = 0x16, 前 2 字节是 UUID，后面是 Service 的数据；
-32 bit UUID Service: TYPE = 0x??, 前 4 字节是 UUID，后面是 Service 的数据；
-128 bit UUID Service: TYPE = 0x??, 前 16 字节是 UUID，后面是 Service 的数据；
-公开目标地址：TYPE = 0x17，表示希望这个广播包被指定的目标设备处理，此设备绑定了公开地址，DATA 是目标地址列表，每个地址 6 字节。
-
-随机目标地址：TYPE = 0x18，定义和前一个类似，表示希望这个广播包被指定的目标设备处理，此设备绑定了随机地址，DATA 是目标地址列表，每个地址 6 字节。
-
-Appearance：TYPE = 0x19，DATA 是表示了设备的外观。
-
-厂商自定义数据: TYPE = 0xFF，厂商自定义的数据中，前两个字节表示厂商 ID，剩下的是厂商自己按照需求添加，里面的数据内容自己定义。
-
-还有一些其他的数据，我这里就不一一列举了，有需要的可以从这个文档查阅 Core Specification Supplement。
+- 根据如下数据包，举例说明解析的思路
+搜索设备获取的数据包如下：
+```
+02 01 06 14 FF 11 22 00 00 00 01 00 1F 09 01 00 00 00 CE DD 5E 5A 5D 23 06 08 48 45 54 2D 35 09 03 E7 FE 12 FF 0F 18 0A 18 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+```
+根据解析规则，可分成如下部分：
+1、广播数据
+```
+02 01 06 14 FF 11 22 00 00 00 01 00 1F 09 01 00 00 00 CE DD 5E 5A 5D 23 06 08 48 45 54 2D 35 
+```
+2、响应数据
+```
+09 03 E7 FE 12 FF 0F 18 0A 18 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+```
+3、有效数据
+```
+02 01 06 14 FF 11 22 00 00 00 01 00 1F 09 01 00 00 00 CE DD 5E 5A 5D 23 06 08 48 45 54 2D 35 09 03 E7 FE 12 FF 0F 18 0A 18
+```
+4、无效数据
+```
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+```
+其中的有效数据又可分为如下几个数据单元：
+`02 01 06`
+`14 FF 11 22 00 00 00 01 00 1F 09 01 00 00 00 CE DD 5E 5A 5D 23`
+`06 08 48 45 54 2D 35`
+`09 03 E7 FE 12 FF 0F 18 0A 18`
+根据上面定义的AD Type分别解析如下：
+第一组数据告诉我们该设备属于LE普通发现模式，不支持BR/EDR；
+第二组数据告诉我们该数据为厂商自定义数据，一般是必须解析的，可根据协议规则进行解析获取对应的所需信息；
+第三组数据告诉我们该设备的简称为HET-5，其中对应的字符是查找[ASSIC表](http://baike.baidu.com/link?url=_TISWJN8T3JSHi5A8OrhuBNyzLLAf006twuPA8wIWtdDG7UbyTfenCFaGWMxJCfXXmZp3SFMTHirjsKx0pTRua)得出的；
+第四组数据告诉我们UUID为`E7FE-12FF-0F18-0A18`(此处有疑，类型03表示的是16位的UUID，对应的两个字节，而此处有8个字节，估计是设备烧录时把字节位数理解为了字符位数导致的问题).
 
 #### 五、参考链接
 1、[蓝牙Bluetooth BR/EDR 和 Bluetooth Smart 必需要知道的十个不同点](http://www.mr-wu.cn/ten-important-differences-between-bluetooth-bredr-and-bluetooth-smart/)

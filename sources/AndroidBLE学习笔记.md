@@ -124,7 +124,7 @@ bluetoothAdapter.startLeScan(new BluetoothAdapter.LeScanCallback() {
 ```
 
 ##### 3、设备通信
-两个设备通过BLE通信，首先需要建立GATT连接，这里我们讲的是Android设备作为client端，连接GATT Server。连接GATT Server，需要调用BluetoothDevice的connectGatt()方法，此函数带三个参数：Context、autoConnect(boolean)和 BluetoothGattCallback 对象。调用后返回BluetoothGatt对象，它是GATT profile的封装，通过这个对象，我们就能进行GATT Client端的相关操作。如断开连接`bluetoothGatt.disconnect()`，断开服务`bluetoothGatt.discoverServices()`等等。示例代码如下：
+两个设备通过BLE通信，首先需要建立GATT连接，这里我们讲的是Android设备作为client端，连接GATT Server。连接GATT Server，需要调用BluetoothDevice的connectGatt()方法，此函数带三个参数：Context、autoConnect(boolean)和 BluetoothGattCallback 对象。调用后返回BluetoothGatt对象，它是GATT profile的封装，通过这个对象，我们就能进行GATT Client端的相关操作。如断开连接`bluetoothGatt.disconnect()`，发现服务`bluetoothGatt.discoverServices()`等等。示例代码如下：
 
 ```
 BluetoothDevice bluetoothDevice = bluetoothAdapter.getRemoteDevice(address);

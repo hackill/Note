@@ -12,7 +12,7 @@ import com.vise.common_bluetooth.conn.TimeoutCallback;
 import com.vise.common_bluetooth.scan.PeriodScanCallback;
 
 /**
- * @Description:
+ * @Description: 发送命令管理类
  * @author: <a href="http://xiaoyaoyou1212.360doc.com">DAWI</a>
  * @date: 2016-07-11 11:11
  */

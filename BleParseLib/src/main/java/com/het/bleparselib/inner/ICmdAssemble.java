@@ -1,4 +1,4 @@
-package com.het.bleparselib;
+package com.het.bleparselib.inner;
 
 /**
  * @Description: 命令组装接口

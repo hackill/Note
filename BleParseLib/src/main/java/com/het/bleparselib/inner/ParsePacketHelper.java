@@ -1,6 +1,4 @@
-package com.het.bleparselib;
-
-import android.content.Context;
+package com.het.bleparselib.inner;
 
 import com.het.bleparselib.utils.CRCUtil;
 import com.het.bleparselib.utils.ConvertUtil;
@@ -12,16 +10,10 @@ import com.vise.common_bluetooth.utils.HexUtil;
  * @author: <a href="http://xiaoyaoyou1212.360doc.com">DAWI</a>
  * @date: 2016-06-30 13:59
  */
-public class ParsePacketHelper {
+public abstract class ParsePacketHelper {
 
     private byte[] buffer = new byte[60];
     private int bufferIndex = 0;
-    private Context context;
-
-    public ParsePacketHelper setContext(Context context) {
-        this.context = context;
-        return this;
-    }
 
     /**
      * 解析包
@@ -53,9 +45,7 @@ public class ParsePacketHelper {
         }
     }
 
-    private void parseCommand(byte[] firstCmd, byte[] secondCmd) {
-
-    }
+    protected abstract void parseCommand(byte[] data, byte[] cmdFlag);
 
     /**
      * 判定数据包是否正确

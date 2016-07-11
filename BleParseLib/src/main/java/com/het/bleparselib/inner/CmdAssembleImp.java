@@ -1,4 +1,4 @@
-package com.het.bleparselib;
+package com.het.bleparselib.inner;
 
 import com.het.bleparselib.utils.CRCUtil;
 import com.het.bleparselib.utils.ConvertUtil;

@@ -1,4 +1,4 @@
-package com.het.bleparselib;
+package com.het.bleparselib.inner;
 
 /**
  * @Description: 构建命令

@@ -105,6 +105,58 @@ public class CalculatorUtilTest {
 ```
 最后就可以直接选择CalculatorUtilTest直接运行了。到此，单元测试就告一段落了，下面是讲述性能分析，这个也很重要哦！^-^
 #### 二、性能分析
+##### 1、Memory Monitor
+在Android Studio中运行项目后，点击Android Monitor中的Monitor就可以看到如下图所示的Memory使用及CPU运行情况：
+
+下面还可以查看GPU和Network的相关情况，其中NetWork的频繁使用是造成应用耗电的关键，70%左右的电量是被上报数据，检查位置信息，定时检索后台广告信息所使用掉的，如何平衡之间的使用也是很重要的。
+##### 2、Heap Snapshot
+依据上面Memory Monitor描述，找到Memory中第三个图标“Dump Java Heap”，每次点击之后会生成一个.hprof的文件，点击一个.hprof文件，查看右侧的Analyzer Tasks,能看到两个选项，一个是‘Detect Leaeked Activites’，另一个是'Find Duplicate Strings'，点击右上角的绿色播放按钮，会自动分析heap dump去定位泄露的activity和重复的string，出现如下的Analysis Results：
+
+从该面板中可以看出，第一个选项表示查看的信息可以有三种类型:App heap/Image heap/Zygote heap.分别代表App堆内存信息，图片堆内存信息，Zygote进程的堆内存信息。还有一个选项可以选择Class List View和Package Tree View两种视图展示方式。
+
+各属性中英文对照表
+
+|名称|意义|
+|---|---|
+|Total Count|内存中该类的对象个数|
+|Heap Count|堆内存中该类的对象个数|
+|Sizeof|物理大小|
+|Depth|深度|
+|Shallow size|对象本身占有内存大小|
+|Retained Size|释放该对象后，节省的内存大小|
+|Dominating Size|管辖的内存大小|
+
+##### 3、LeakCanary
+- 使用方法
+在 build.gradle 中加入引用，不同的编译使用不同的引用：
+```
+dependencies {
+   debugCompile 'com.squareup.leakcanary:leakcanary-android:1.3'
+   releaseCompile 'com.squareup.leakcanary:leakcanary-android-no-op:1.3'
+}
+```
+在 Application 中：
+```
+public class ExampleApplication extends Application {
+
+  @Override public void onCreate() {
+    super.onCreate();
+    LeakCanary.install(this);
+  }
+}
+```
+应用运行起来后，LeakCanary会自动去分析当前的内存状态，如果检测到泄漏会发送到通知栏，点击通知栏就可以跳转到具体的泄漏分析页面。
+- 工作机制
+1、RefWatcher.watch() 创建一个 KeyedWeakReference 到要被监控的对象。
+2、然后在后台线程检查引用是否被清除，如果没有，调用GC。
+3、如果引用还是未被清除，把 heap 内存 dump 到 APP 对应的文件系统中的一个 .hprof 文件中。
+4、在另外一个进程中的 HeapAnalyzerService 有一个 HeapAnalyzer 使用HAHA 解析这个文件。
+5、得益于唯一的 reference key, HeapAnalyzer 找到 KeyedWeakReference，定位内存泄露。
+6、HeapAnalyzer 计算 到 GC roots 的最短强引用路径，并确定是否是泄露。如果是的话，建立导致泄露的引用链。
+7、引用链传递到 APP 进程中的 DisplayLeakService， 并以通知的形式展示出来。
+更多关于LeakCanary的使用介绍请参考：[LeakCanary 中文使用说明](http://www.liaohuqiu.net/cn/posts/leak-canary-read-me/)
+
+注：以上都是针对Android Studio IDE的性能分析方式。
 
 #### 三、签名
 签名的前提得有签名文件，生成签名文件的方式大同小异，IDE基本都有这个功能，这里以Android Studio为列讲述生成签名文件的过程。选择工具栏Build->Generate Signed APK,打开后选择对应的module，点击next，如图所示：

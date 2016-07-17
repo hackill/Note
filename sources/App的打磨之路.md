@@ -1,5 +1,5 @@
 ---
-title: Apk的打磨之路
+title: App的打磨之路
 date: 2016-06-25 10:24:51
 tags: [Android,随笔]
 ---
@@ -107,12 +107,13 @@ public class CalculatorUtilTest {
 #### 二、性能分析
 ##### 1、Memory Monitor
 在Android Studio中运行项目后，点击Android Monitor中的Monitor就可以看到如下图所示的Memory使用及CPU运行情况：
-
+![这里写图片描述](http://img.blog.csdn.net/20160717204116339)
 下面还可以查看GPU和Network的相关情况，其中NetWork的频繁使用是造成应用耗电的关键，70%左右的电量是被上报数据，检查位置信息，定时检索后台广告信息所使用掉的，如何平衡之间的使用也是很重要的。
 ##### 2、Heap Snapshot
 依据上面Memory Monitor描述，找到Memory中第三个图标“Dump Java Heap”，每次点击之后会生成一个.hprof的文件，点击一个.hprof文件，查看右侧的Analyzer Tasks,能看到两个选项，一个是‘Detect Leaeked Activites’，另一个是'Find Duplicate Strings'，点击右上角的绿色播放按钮，会自动分析heap dump去定位泄露的activity和重复的string，出现如下的Analysis Results：
-
-从该面板中可以看出，第一个选项表示查看的信息可以有三种类型:App heap/Image heap/Zygote heap.分别代表App堆内存信息，图片堆内存信息，Zygote进程的堆内存信息。还有一个选项可以选择Class List View和Package Tree View两种视图展示方式。
+![这里写图片描述](http://img.blog.csdn.net/20160717203349141)
+![这里写图片描述](http://img.blog.csdn.net/20160717203423173)
+从上面两幅图中可以看出，第一个选项表示查看的信息可以有三种类型:App heap/Image heap/Zygote heap.分别代表App堆内存信息，图片堆内存信息，Zygote进程的堆内存信息。还有一个选项可以选择Class List View和Package Tree View两种视图展示方式。
 
 各属性中英文对照表
 
@@ -160,9 +161,9 @@ public class ExampleApplication extends Application {
 
 #### 三、签名
 签名的前提得有签名文件，生成签名文件的方式大同小异，IDE基本都有这个功能，这里以Android Studio为列讲述生成签名文件的过程。选择工具栏Build->Generate Signed APK,打开后选择对应的module，点击next，如图所示：
-
+![这里写图片描述](http://img.blog.csdn.net/20160717204325154)
 点击Create new，进入如下界面：
-
+![这里写图片描述](http://img.blog.csdn.net/20160717204342468)
 ```
 信息注释
 Key store path:签名文件路径

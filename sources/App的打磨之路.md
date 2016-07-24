@@ -432,447 +432,7 @@ Java 是一种跨平台的、解释型语言，Java 源代码编译成中间”�
 
 注：混淆后生成的相关信息文件在当前module的build/outputs/mapping下，目录下可能会有渠道名，下面再分为debug和release，与你的配置相关，其中的mapping.txt文件需要重点关注，该文件表示混淆前后代码的对照表，这个文件非常重要,如果你的代码混淆后会产生bug的话，log提示中是混淆后的代码，希望定位到源代码的话就可以根据mapping.txt反推,每次发布都要保留它方便该版本出现问题时调出日志进行排查，它可以根据版本号或是发布时间命名来保存或是放进代码版本控制中。
 
-#### 五、打包
-##### 1、Maven打包
-##### 2、Apktool打包
-##### 3、批量快速打包
-##### 4、Gradle定制化打包
-
-
-```
-概述
-每当发新版本时，美团团购Android客户端会被分发到各个应用市场，比如豌豆荚，360手机助手等。为了统计这些市场的效果（活跃数，下单数等），需要有一种方法来唯一标识它们。
-
-团购客户端目前通过渠道号（channel）来区分不同的市场，代码中使用Config.channel变量记录该渠道号。比如，豌豆荚市场中美团应用的渠道号是wandoujia，360手机助手中美团应用的渠道号为qihu360。客户端访问API时会在请求参数中带上渠道号，以便后台接下来计算不同渠道的效果。
-
-每次发版时，市场部会提供一个渠道列表，Android RD会根据这些渠道相应地生成等量的渠道包。随着渠道越来越多（截止本文写作时已有900多个渠道），客户端打渠道包的方式也一直在演进，本文接下来就详细介绍美团应用的打包之旅。
-
-Maven
-Maven是一个软件项目管理和自动构建工具，配合使用android-maven-plugin插件，以及maven-resources-plugin插件可以很方便的生成渠道包，下面简要介绍下打包过程，更多Maven以及插件的使用方法请参考相关文档。
-
-首先，在AndroidManifest.xml的<application>节点中添加如下<meta-data>元素，用来定义渠道的来源：
-
-<!-- 使用Maven打包时会用具体的渠道号替换掉${channel} -->
-<meta-data
-        android:name="channel"
-        android:value="${channel}" />
-定义好渠道来源后，接下来就可以在程序启动时读取渠道号了：
-
-private String getChannel(Context context) {
-        try {
-            PackageManager pm = context.getPackageManager();
-            ApplicationInfo appInfo = pm.getApplicationInfo(context.getPackageName(), PackageManager.GET_META_DATA);
-            return appInfo.metaData.getString("channel");
-        } catch (PackageManager.NameNotFoundException ignored) {
-        }
-        return "";
-
-    }
-要替换AndroidManifest.xml文件定义的渠道号，还需要在pom.xml文件中配置Resources插件：
-
-<resources>           
-    <resource>
-        <directory>${project.basedir}</directory>
-        <filtering>true</filtering>
-        <targetPath>${project.build.directory}/filtered-manifest</targetPath>
-        <includes>
-            <include>AndroidManifest.xml</include>
-        </includes>
-    </resource>
-</resources>
-准备工作已经完成，现在需要的就是实际的渠道号了。下面的脚本会遍历渠道列表，逐个替换并打包：
-
-#!/bin/bash
-
-package(){
-    while read line
-    do
-        mvn clean
-        mvn  -Dchannel=$line package
-    done < $1
-}
-
-package $1
-在前期渠道很少时这种方法还可以接受，但只要渠道稍微增多该方法就不再适用了，原因是每打一个包都要执行一遍构建过程，效率太低。
-
-apktool
-apktool是一个逆向工程工具，可以用它解码（decode）并修改apk中的资源。接下来详细介绍如何使用apktool生成渠道包。
-
-前期工作和用Maven打包一样，也需要在AndroidManifest.xml文件中定义<meta-data>元素，并在应用启动的时候读取清单文件中的渠道号。具体请参考上面的代码。
-
-和Maven不一样的是，每次打包时不再需要重新构建项目。打包时，只需生成一个apk，然后在该apk的基础上生成其他渠道包即可。
-
-首先，使用apktool decode应用程序，在终端中输入如下命令：
-
-apktool d your_original_apk build
-上面的命令会在build目录中decode应用文件，decode完成后的目录如下：
-
-
-
-接下来，替换AndroidManifest.xml文件中定义的渠道号，下面是一段python脚本：
-
-import re
-
-def replace_channel(channel, manifest):
-    pattern = r'(<meta-data\s+android:name="channel"\s+android:value=")(\S+)("\s+/>)'
-    replacement = r"\g<1>{channel}\g<3>".format(channel=channel)
-    return re.sub(pattern, replacement, manifest)
-然后，使用apktool构建未签名的apk：
-
-apktool b build your_unsigned_apk
-最后，使用jarsigner重新签名apk：
-
-jarsigner -sigalg MD5withRSA -digestalg SHA1 -keystore your_keystore_path -storepass your_storepass -signedjar your_signed_apk, your_unsigned_apk, your_alias
-上面就是使用apktool打包的方法，通过使用脚本可以批量地生成渠道包。不像Maven，每打一个包都需要执行一次构建过程，该方法只需构建一次，大大节省了时间。
-
-但是好景不长，我们的渠道包越来越多，目前已有近900个渠道，打完所有的渠道包需要近3个小时。有没有更快的打包方式呢？且看下节。
-
-META-INF
-如果能直接修改apk的渠道号，而不需要再重新签名能节省不少打包的时间。幸运的是我们找到了这种方法。直接解压apk，解压后的根目录会有一个META-INF目录，如下图所示：
-
-
-
-如果在META-INF目录内添加空文件，可以不用重新签名应用。因此，通过为不同渠道的应用添加不同的空文件，可以唯一标识一个渠道。
-
-下面的python代码用来给apk添加空的渠道文件，渠道名的前缀为mtchannel_：
-
-import zipfile
-zipped = zipfile.ZipFile(your_apk, 'a', zipfile.ZIP_DEFLATED) 
-empty_channel_file = "META-INF/mtchannel_{channel}".format(channel=your_channel)
-zipped.write(your_empty_file, empty_channel_file)
-添加完空渠道文件后的目录，META-INFO目录多了一个名为mtchannel_meituan的空文件：
-
-
-
-接下来就可以在Java代码中读取空渠道文件名了：
-
-public static String getChannel(Context context) {
-        ApplicationInfo appinfo = context.getApplicationInfo();
-        String sourceDir = appinfo.sourceDir;
-        String ret = "";
-        ZipFile zipfile = null;
-        try {
-            zipfile = new ZipFile(sourceDir);
-            Enumeration<?> entries = zipfile.entries();
-            while (entries.hasMoreElements()) {
-                ZipEntry entry = ((ZipEntry) entries.nextElement());
-                String entryName = entry.getName();
-                if (entryName.startsWith("mtchannel")) {
-                    ret = entryName;
-                    break;
-                }
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-        } finally {
-            if (zipfile != null) {
-                try {
-                    zipfile.close();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
-        }
-
-        String[] split = ret.split("_");
-        if (split != null && split.length >= 2) {
-            return ret.substring(split[0].length() + 1);
-
-        } else {
-            return "";
-        }
-    }
-这样，每打一个渠道包只需复制一个apk，在META-INF中添加一个使用渠道号命名的空文件即可。这种打包方式速度非常快，900多个渠道不到一分钟就能打完。
-```
-
-```
-概述
-前一篇文章(美团Android自动化之旅—生成渠道包)介绍了Android中几种生成渠道包的方式，基本解决了打包慢的问题。
-
-但是，随着渠道越来越多，不同渠道对应用的要求也不尽相同。例如，有的渠道要求美团客户端的应用名为美团，有的渠道要求应用名为美团团购。又比如，有些渠道要求应用不能使用第三方统计工具（如flurry）。总之，每次打包都需要对这些渠道进行适配。
-
-之前的做法是为每个需要适配的渠道创建一个Git分支，发版时再切换到相应的分支，并合并主分支的代码。适配的渠道比较少的话这种方式还可以接受，如果分支比较多，对开发人员来说简直就是噩梦。还好，自从有了Gradle flavor，一切都变得简单了。本文假定读者使用过Gradle，如果还不了解建议先阅读相关文档。
-
-Flavor
-先来看build.gradle文件中的一段代码：
-
-android {
-    ....
-
-    productFlavors {
-        flavor1 {
-            minSdkVersion 14
-        }
-    }
-}
-上例定义了一个flavor：flavor1，并指定了应用的minSdkVersion为14（当然还可以配置更多的属性，具体可参考相关文档）。与此同时，Gradle还会为该flavor关联对应的sourceSet，默认位置为src/<flavorName>目录，对应到本例就是src/flavor1。
-
-接下来，要做的就是根据具体的需求在build.gradle文件中配置flavor，并添加必要的代码和资源文件。以flavor1为例，运行gradle assembleFlavor1命令既可生成所需的适配包。下面主要介绍美团团购Android客户端的一些适配案例。
-
-案例
-使用不同的包名
-美团团购Android客户端之前有两个版本：手机版(com.meituan.group)和hd版(com.meituan.group.hd)，两个版本使用了不同的代码。目前hd版对应的代码已不再维护，希望能直接使用手机版的代码。解决该问题可以有多种方法，不过使用flavor相对比较简单，示例如下：
-
-productFlavors {
-    hd {
-        applicationId "com.meituan.group.hd"
-    }
-}
-上面的代码添加了一个名为hd的flavor，并指定了应用的包名为com.meituan.group.hd，运行gradle assembleHd命令即可生成hd适配包。
-
-控制是否自动更新
-美团团购Android客户端在启动时会默认检查客户端是否有更新，如果有更新就会提示用户下载。但是有些渠道和应用市场不允许这种默认行为，所以在适配这些渠道时需要禁止自动更新功能。
-
-解决的思路是提供一个配置字段，应用启动的时候检查该字段的值以决定是否开启自动更新功能。使用flavor可以完美的解决这类问题。
-
-Gradle会在generateSources阶段为flavor生成一个BuildConfig.java文件。BuildConfig类默认提供了一些常量字段，比如应用的版本名（VERSION_NAME），应用的包名（PACKAGE_NAME）等。更强大的是，开发者还可以添加自定义的一些字段。下面的示例假设wandoujia市场默认禁止自动更新功能：
-
-android {
-    defaultConfig {
-        buildConfigField "boolean", "AUTO_UPDATES", "true"
-    }
-
-    productFlavors {
-        wandoujia {
-            buildConfigField "boolean", "AUTO_UPDATES", "false"
-        }        
-    }
-
-}
-上面的代码会在BuildConfig类中生成AUTO_UPDATES布尔常量，默认值为true，在使用wandoujia flavor时，该值会被设置成false。接下来就可以在代码中使用AUTO_UPDATES常量来判断是否开启自动更新功能了。最后，运行gradle assembleWandoujia命令即可生成默认不开启自动升级功能的渠道包，是不是很简单。
-
-使用不同的应用名
-最常见的一类适配是修改应用的资源。例如，美团团购Android客户端的应用名是美团，但有的渠道需要把应用名修改为美团团购；还有，客户端经常会和一些应用分发市场合作，需要在应用的启动界面中加上第三方市场的Logo，类似这类适配形式还有很多。
-Gradle在构建应用时，会优先使用flavor所属dataSet中的同名资源。所以，解决思路就是在flavor的dataSet中添加同名的字符串资源，以覆盖默认的资源。下面以适配wandoujia渠道的应用名为美团团购为例进行介绍。
-
-首先，在build.gradle配置文件中添加如下flavor：
-
-android {
-    productFlavors {
-        wandoujia { 
-        }
-    }
-}
-上面的配置会默认src/wandoujia目录为wandoujia flavor的dataSet。
-
-接下来，在src目录内创建wandoujia目录，并添加如下应用名字符串资源（src/wandoujia/res/values/appname.xml）：
-
-<resources>
-    <string name="app_name">美团团购</string>
-</resources>
-默认的应用名字符串资源如下（src/main/res/values/strings.xml）:
-
-<resources>
-    <string name="app_name">美团</string>
-</resources>
-最后，运行gradle assembleWandoujia命令即可生成应用名为美团团购的应用了。
-
-使用第三方SDK
-某些渠道会要求客户端嵌入第三方SDK来满足特定的适配需求。比如360应用市场要求美团团购Android客户端的精品应用模块使用他们提供的SDK。问题的难点在于如何只为特定的渠道添加SDK，其他渠道不引入该SDK。使用flavor可以很好的解决这个问题，下面以为qihu360 flavor引入com.qihoo360.union.sdk:union:1.0 SDK为例进行说明：
-
-android {
-    productFlavors {
-        qihu360 {
-        }
-    }
-}
-...
-dependencies {
-    provided 'com.qihoo360.union.sdk:union:1.0'
-    qihu360Compile 'com.qihoo360.union.sdk:union:1.0'
-}
-上例添加了名为qihu360的flavor，并且指定编译和运行时都依赖com.qihoo360.union.sdk:union:1.0。而其他渠道只是在构建的时候依赖该SDK，打包的时候并不会添加它。
-
-接下来，需要在代码中使用反射技术判断应用程序是否添加了该SDK，从而决定是否要显示360 SDK提供的精品应用。部分代码如下：
-
-class MyActivity extends Activity {
-    private boolean useQihuSdk;
-
-    @override
-    public void onCreate(Bundle savedInstanceState) {
-        try {
-            Class.forName("com.qihoo360.union.sdk.UnionManager");
-            useQihuSdk = true;
-        } catch (ClassNotFoundException ignored) {
-
-        }
-    }
-}
-最后，运行gradle assembleQihu360命令即可生成包含360精品应用模块的渠道包了。
-```
-
-#### 六、反编译
-
-反编译，又称为逆向编译技术，是指将可执行文件变成高级语言源程序的过程。反编译技术依赖于编译技术，是编译过程的逆过程。
-编译程序把一个源程序翻译成目标程序的工作过程分为五个阶段：词法分析；语法分析；语义检查和中间代码生成；代码优化；目标代码生成。词法分析的任务是对由字符组成的单词进行处理，从左至右逐个字符地对源程序进行扫描，产生一个个的单词符号，把作为字符串的源程序改造成为单词符号串的中间程序。语法分析以单词符号作为输入，分析单词符号串是否形成符合语法规则的语法单位，如表达式、赋值、循环等，最后看是否构成一个符合要求的程序。语义分析是审查源程序有无语义错误，为代码生成阶段收集类型信息。中间代码是源程序的一种内部表示，或称中间语言。中间代码的作用是可使编译程序的结构在逻辑上更为简单明确，特别是可使目标代码的优化比较容易实现。代码优化是指对程序进行多种等价变换，使得从变换后的程序出发，能生成更有效的目标代码。目标代码生成是编译的最后一个阶段。
-反编译器也有前端和后端。前端是一个机器依赖的模块，句法分析二进制程序、分析其指令的语义、并且生成该程序的低级中间表示法和每一子程序的控制流向图。通用的反编译机器是一个与语言和机器无关的模块，分析低级中间代码，将它转换成对任何高级语言都可接受的高级表示法，并且分析控制流向图的结构、把它们转换成用高级控制结构表现的图。最后，后端是一个目标语言依赖的模块，生成目标语言代码。
-
-C++、C语言一般不能反编译为源代码，只能反编译为asm（汇编）语言，因为C较为底层，编译之后不保留任何元信息，而计算机运行的二进制实际上就代表了汇编指令，所以反编译为汇编是较为简单的。
-
-C#、Java这类高级语言，尤其是需要运行环境的语言，如果没有混淆，非常容易反编译。原因很简单，这类语言只会编译为中间语言（C#为MSIL，Java为Bytecode），而中间语言与原语言本身较为相似，加上保留的元信息（记录类名、成员函数等信息）就可以反向生成源代码，注意是由反编译器生成，不会与源代码完全相同，但可以编译通过。这些特性本来是为反射技术准备的，却被反编译器利用，现在的C#反编译器ILSpy甚至可以反向工程。
-
-反编译apk得到的几个文件和文件夹
-1。 assets 文件夹
-此文件夹可以存放资源文件。至于是神马资源文件，怎么读取，这些我们就不用深究了，因为不常改。
-2。 res 文件夹
-主要用来存放资源。此文件夹下可以创建子文件，常见的有：
-anim 动画
-drawable 图片
-color 颜色
-menu 菜单
-layout 布局
-values 常量值
-xml 任意xml文件
-我们修改apk时，一般就在这里修改。比如汉化，改名称，去广告，改字体颜色，大小神马的。
-3。smali
-里面主要是dex文件反编译得到的smali文件。不会java的改不起。顶多搜几个关键词汉化一下。值得注意的是，汉化时不能直接输入汉字，而应输入对应的十六进制代码。
-4。AndroidManifest.xml
-此文件是apk中最重要的文件之一。它是apk的全局配置文件，提供了android系统所需要的关于该应用的必要信息。
-
-res目录浅说：
-1 anim文件夹
-    后缀名为.xml。动画文件都放在这里。
-2 drawable文件夹
-用于存放图片资源，图片或者xml。
-(1) 图片
-图片格式：png，9.png，jpg，gif。
-注意：9.png是一种特殊的png格式，与一般的png格式有区别！很多人在改完图片后将两种格式混淆，导致回编译失败。后面有制作9.png格式图片的方法。
-(2) xml
-xml文件通常为自定义的形状shape或图片选择器类selector似的东西，就是不同状态下不同的图片，用于设置background什么的。
-(3) drawable文件夹为了对屏幕的适配，
-①对分辨率笼统的分：名字可以为：drawable-ldpi
-drawable-mdpi
-drawable-hdpi
-drawable-xhdp
-drawable-nodpi
-drawable-tvdpi
-分辨率依次由高到低
-②具体到某一分辨率：drawable-分辨率，比如：drawable-1280x720
-③如果有横竖屏的区别，则命名为：drawable-land/port-mdpi，
-3 color文件夹
-用于存放color列表，和drawable的xml一样，表示不同状态下的不同颜色
-4 menu文件夹
-菜单资源文件夹。
-5 layout文件夹
-布局文件夹。此文件夹的名字也是可以起到屏幕适配的功能的。
-①横竖屏：layout-land/port
-②分辨率：layout-1280x720
-6 values文件夹
-存放常量值的文件夹。里面常见的xml文件为：
-arrays.xml ：  资源数组.
-colors.xml :   颜色值
-dimens.xml ：  像素值.
-strings.xml ： 字符串值.
-styles.xml ：  样式值.
-此文件夹，也有屏幕适配作用。比如：dimens在不同分辨率下的值。同样的是加-1280x720这样的后缀。
-对于strings，values文件夹有各种语言的版本对应。默认为英文。中文的文件夹名字应该是：
-values-zh-rCN 简体中文
-values-zh-rTW 繁体中文
-7 raw文件夹
-存放不需要系统编译成二进制的文件，例如字体文件等，同assets文件夹类似。
-8 xml文件夹
-存放任意的xml文件。具体看名字。
-
-改apk时，我们主要改两种，即图片和xml。先讲图片：
-改图片最简单了，注意好格式，分辨率即可。但有一点需注意，就是9.png和png格式图片的区别。许多人没注意这点，导致回编译总是失败。下面讲9.png格式图片的制作。
-1 介绍 9patch
-NinePatch.图片以*.9.png结尾，和普通图片的区别是四周多了一个边框
-左边那条黑色线代表图片垂直拉伸的区域，上边的那条黑色线代表水平拉伸区域，右边的黑色线代表内容绘制的垂直区域，下边的黑色线代表内容绘制的水平区域，右边和下边的线是可选的，左边和上边的线不能省略。
-采用NinePatch.图片做背景，可使背景随着内容的拉伸（缩小）而拉伸（缩小）
-总之，通俗的将，9patch格式的图片就是有些部位能伸缩，有些部位不能的特殊png格式图片。
-2 将png转化为9.png步骤如下
-第一步，下载9妹工具，一楼工具包里有，双击打开draw9patch.bat，将图片拖到软件界面编辑。
-第二步，勾选软件下面的三个选项，全选就对了。
-第三步，把鼠标放到图片中央，此时你会看到图片四周有1像素的透明带
-第四步，在左边和上边的透明带上各画一条黑线（鼠标拖动即可）
-注意：当图片过大时上边的透明带会被黄色的提示框遮住，此时只能多点击黄色区域自己摸索透明带的位置。
-第五步，保存，这个不用多说吧。
-至此，将图片替换回原来的文件夹即可。需要注意的是，刚编辑的9patch.图片不能直接拖到原apk中，而应回编译后再替换进去。
-
-再说修改xml。改字体，软件全局背景，汉化，去广告神马的都通过这种方式。我们常改的是layout，drawable，values目录下的xml文件，如果要改桌面插件，要去xml文件夹中修改。必要时也可尝试修改AndroidManifest.xml。下面是常见代码（分类非标准）
-1 引用（@）
-1)引用自定义的资源
-形式 @[package:]type/name
-如 android:text="@string/hello"
-这里使用"@"前缀引入对一个资源的引用，后面的string/hello就是我们自定义的资源。
-2) 引用系统资源
-形式 @android:type/name
-如 android:textColor="@android:color/opaque_red" 指定package:android
-3) 引用主题属性
-形式 ？android:type/name
-即引用当前主题中的属性的值。
-2 文本（text）
-textColor 文本颜色
-textColorHighlight 被选中文字的底色，默认为蓝色
-textColorHint 提示信息文字的颜色，默认为灰色。与hint一起使用
-textColorLink 文字链接的颜色
-textScaleX 设置文字之间间隔，默认为1.0f
-textSize 文字大小
-textStyle 字形
-typeface 文本字体
-height 文本区域的高度
-maxHeight 文本区域的最大高度
-width 文本区域的宽度
-lines 文本的行数
-3 视图（view）
-background 背景色/背景图片（@null 透明）
-clickable 是否响应点击事件
-focusable 是否获得焦点
-minHeight 视图最小高度 
-minWidth 视图最小宽度
-padding 上下左右的边距
-scrollbar 滚动条（none 隐藏，horizontal 水平，vertical 垂直）
-tag 文本标签
-visibility 是否显示View（visible 默认值，显示；invisible 不显示，但是仍然占用空间；gone 不显示，不占用空间）
-4 布局（layout）
-LinearLayout 线性布局
-FrameLayout 单帧布局
-RelativeLayout 相对布局
-AbsoluteLayout 绝对布局
-TableLayout 表格布局
-layout_width 宽度
-layout_height 高度
-fill_patent 布满屏幕
-wrap_content 适合大小
-foreground 前景
-background 背景
-gravity 位置（center_vertical 居中；top 顶部，默认；bottom 底部）
-orientation 定向（horizontal 水平，vertical 垂直）
-5 主题（theme）
-Theme.Dialog 对话框模式
-Theme.NoTitleBar 无标题栏
-Theme.NoTitleBar.Fullscreen 无标题栏，全屏
-Theme.Light 白色背景
-Theme.Light.NoTitleBar 白色背景，无标题栏
-Theme.Light.NoTitleBar.Fullscreen 白色背景，无标题栏，全屏
-Theme.Black 黑色背景
-Theme.Black.NoTitleBar 黑色背景并，无标题栏
-Theme.Black.NoTitleBar.Fullscreen 黑色背景，无标题栏，全屏
-Theme.Wallpaper 桌面背景
-Theme.Wallpaper.NoTitleBar 桌面背景，无标题栏
-Theme.Wallpaper.NoTitleBar.Fullscreen 桌面背景，无标题栏，全屏
-Theme.Translucent 半透明效果
-Theme.Translucent.NoTitleBar 半透明，无标题栏
-Theme.Translucent.NoTitleBar.Fullscreen 半透明效果，无标题栏，全屏
-Theme.Panel 面板风格显示
-Theme.Light.Panel 平板风格显示
-6 颜色（color）
-1) @color/×× 引用自定义的颜色，一般在res/values/colors.xml中
-2) @android:color/×× 引用系统颜色
-3) #×××××××× #后一共8个字符，由0~9，a~f组成。前两位是透明度，00表示全透明，ff表示不透明。后6位是RRGGBB，R红G绿B蓝，000000为白，ffffff为黑
-7 单位
-px 像素点
-in 英寸
-mm 毫米
-pt 磅，1/72 英寸
-dp 一个基于density的抽象单位，如果一个160dpi的屏幕，1dp=1px
-dip 等同于dp
-sp 同dp相似，但还会根据用户的字体大小偏好来缩放。
-注意：sp一般是文本的单位，dip最常用
-
-#### 七、加固
-
-#### 八、APK瘦身
+#### 五、APK瘦身
 ##### 1、APK文件结构
 Android应用是用Java编写的，利用Android SDK编译代码，并且把所有的数据和资源文件打包成一个APK (Android Package）文件，这是一个后缀名为.apk的压缩文件，APK文件中包含了一个Android应用程序的所有内容，是Android平台用于安装应用程序的文件。APK就是一个zip压缩包，解开这个APK包我们可以看到以下的结构：
 
@@ -937,6 +497,294 @@ defaultConfig {
 - 尽可能地重用
 重用资源是最重要的优化技巧之一。比如在一个ListView或者RecyclerView，重用可以帮助你在列表滚动时保持界面流畅;重用还可以帮你减少apk文件的大小,例如，Android 提供了几个工具为一个asset文件重新着色，在Android L中你可以使用android:tint和android:tintMode来达到效果，在老版本中则可以使用ColorFilter;如果系统中有两种图片，一种图片是另一种图片翻转180°得到的，那么你就可以移除一种图片，通过代码实现。
 - 在合适的时候使用代码渲染图像
+
+#### 六、打包
+每个Android应用在完成后都需要打成APK包，对于单个打包的方式在此就不赘述了，基本IDE都带，只是在对外发布的应用需要配置属于该应用的唯一签名，下文主要讲述需要上传多个市场的情况下怎么批量打包。
+##### 1、Maven打包
+Maven是一个项目管理工具，它包含了一个项目对象模型(Project Object Model)，一组标准集合，一个项目生命周期(ProjectLifecycle)，一个依赖管理系统(Dependency Management System)，和用来运行定义在生命周期阶段(phase)中插件(plugin)目标(goal)的逻辑。
+Maven也是自动构建工具，配合使用android-maven-plugin插件，以及maven-resources-plugin插件可以很方便的生成渠道包，下面简要介绍下打包过程，更多Maven以及插件的使用方法请参考[Maven教程](http://www.yiibai.com/maven/)。
+首先，在AndroidManifest.xml的<application>节点中添加如下<meta-data>元素，用来定义渠道的来源：
+```
+<!-- 使用Maven打包时会用具体的渠道号替换掉${channel} -->
+<meta-data
+        android:name="channel"
+        android:value="${channel}" />
+```
+定义好渠道来源后，接下来就可以在程序启动时读取渠道号了：
+
+```
+private String getChannel(Context context) {
+    try {
+        PackageManager pm = context.getPackageManager();
+        ApplicationInfo appInfo = pm.getApplicationInfo(context.getPackageName(), PackageManager.GET_META_DATA);
+        return appInfo.metaData.getString("channel");
+    } catch (PackageManager.NameNotFoundException ignored) {
+    }
+    return "";
+
+}
+```
+要替换AndroidManifest.xml文件定义的渠道号，还需要在pom.xml文件中配置Resources插件：
+```
+<!--描述项目相关的所有资源路径列表-->
+<resources>
+	<!--描述项目相关的所有资源路径-->
+    <resource>
+    	<!--描述存放资源的目录，该路径相对POM路径-->
+        <directory>${project.basedir}</directory>
+        <!--是否使用参数值代替参数名-->
+        <filtering>true</filtering>
+        <!--描述资源的目标路径-->
+        <targetPath>${project.build.directory}/filtered-manifest</targetPath>
+        <!--包含的模式列表，例如**/*.xml.-->
+        <includes>
+            <include>AndroidManifest.xml</include>
+        </includes>
+    </resource>
+</resources>
+```
+准备工作已经完成，现在需要的就是实际的渠道号了。下面的脚本会遍历渠道列表，逐个替换并打包：
+```
+#!/bin/bash
+
+package(){
+    while read line
+    do
+        mvn clean
+        mvn  -Dchannel=$line package
+    done < $1
+}
+
+package $1
+```
+从以上描述中可以看出该方式每打一个包都会重新构建，执行效率太低，对于少量渠道还可以接受，渠道包过多就没法满足需求了。
+##### 2、Apktool打包
+Apktool是一个逆向工程工具，可以用它解码（decode）并修改apk中的资源。接下来详细介绍如何使用apktool生成渠道包。
+前期工作和用Maven打包一样，也需要在AndroidManifest.xml文件中定义`<meta-data>`元素，并在应用启动的时候读取清单文件中的渠道号。具体请参考上面的代码。和Maven不一样的是，每次打包时不再需要重新构建项目。打包时，只需生成一个apk，然后在该apk的基础上生成其他渠道包即可。
+首先，使用apktool decode应用程序，在终端中输入如下命令：
+```
+apktool d your_original_apk build
+```
+上面的命令会在build目录中decode应用文件，decode完成后的目录描述如下：
+
+|目录|描述|
+|-----|-----|
+|assets目录|存放需要打包到apk中的静态文件|
+|lib目录|程序依赖的native库|
+|res目录|存放应用程序的资源|
+|smail目录|存放Dalvik VM内部执行的smail代码|
+|AndroidManifest.xml|应用程序的配置文件|
+|apktool.yml|apktool相关配置文件|
+接下来，替换AndroidManifest.xml文件中定义的渠道号，下面是一段python脚本：
+```
+import re
+
+def replace_channel(channel, manifest):
+    pattern = r'(<meta-data\s+android:name="channel"\s+android:value=")(\S+)("\s+/>)'
+    replacement = r"\g<1>{channel}\g<3>".format(channel=channel)
+    return re.sub(pattern, replacement, manifest)
+```
+更多有关Python的使用可参考[Python教程](http://www.yiibai.com/python/)。
+然后，使用apktool构建未签名的apk：
+```
+apktool b build your_unsigned_apk
+```
+最后，使用jarsigner重新签名apk：
+```
+jarsigner -sigalg MD5withRSA -digestalg SHA1 -keystore your_keystore_path -storepass your_storepass -signedjar your_signed_apk, your_unsigned_apk, your_alias
+```
+上面就是使用apktool打包的方法，通过使用脚本可以批量地生成渠道包。不像Maven，每打一个包都需要执行一次构建过程，该方法只需构建一次，大大节省了时间，但缺点是每生成一个包需要重新签名一次。
+##### 3、批量快速打包
+如果能直接修改APK的渠道号，而不需要再重新签名能节省不少打包的时间。上文APK瘦身中讲述过APK解压后的目录结构，其中有个META-INF目录，是存放签名相关信息用来校验APK的完整性的，如果在META-INF目录内添加空文件，可以不用重新签名应用。因此，通过为不同渠道的应用添加不同的空文件，可以唯一标识一个渠道。
+下面的python代码用来给apk添加空的渠道文件，渠道名的前缀为channel_：
+```
+import zipfile
+zipped = zipfile.ZipFile(your_apk, 'a', zipfile.ZIP_DEFLATED)
+empty_channel_file = "META-INF/channel_{channel}".format(channel=your_channel)
+zipped.write(your_empty_file, empty_channel_file)
+```
+假设渠道名为test,则添加完空渠道文件后META-INFO目录多了一个名为channel_test的空文件：
+接下来就可以在代码中读取空渠道文件名了：
+```
+public static String getChannel(Context context) {
+    ApplicationInfo appinfo = context.getApplicationInfo();
+    String sourceDir = appinfo.sourceDir;
+    String ret = "";
+    ZipFile zipfile = null;
+    try {
+        zipfile = new ZipFile(sourceDir);
+        Enumeration<?> entries = zipfile.entries();
+        while (entries.hasMoreElements()) {
+            ZipEntry entry = ((ZipEntry) entries.nextElement());
+            String entryName = entry.getName();
+            if (entryName.startsWith("channel")) {
+                ret = entryName;
+                break;
+            }
+        }
+    } catch (IOException e) {
+        e.printStackTrace();
+    } finally {
+        if (zipfile != null) {
+            try {
+                zipfile.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    String[] split = ret.split("_");
+    if (split != null && split.length >= 2) {
+        return ret.substring(split[0].length() + 1);
+
+    } else {
+        return "";
+    }
+}
+```
+这样，每打一个渠道包只需复制一个apk，在META-INF中添加一个使用渠道号命名的空文件即可。
+更多关于打包详情可参考[AndroidMultiChannelBuildTool](https://github.com/GavinCT/AndroidMultiChannelBuildTool).
+
+##### 4、Gradle定制化打包
+关于Gradle多渠道打包可以参考我的另一篇博文[Android Studio常用Gradle操作](http://blog.csdn.net/xiaoyaoyou1212/article/details/50277555)，下面主要讲解如何根据各个渠道不同的需求来定制化打包，如控制是否自动更新，使用不同的包名、应用名等。
+- 使用不同的包名
+如应用test有两个不同的包名，分别是com.example.test1和com.example.test2，需要对应上传到市场t1和t2，那么在productFlavors中进行如下描述：
+```
+productFlavors {
+    t1 {
+        applicationId "com.example.test1"
+    }
+    t2 {
+        applicationId "com.example.test1"
+    }
+}
+```
+上面的代码添加了两个渠道，两个渠道的包名不同，运行gradle assemble命令即可生成两个不同渠道的适配包。
+- 控制是否自动更新
+有些客户端在启动时会默认检查客户端是否有更新，如果有更新就会提示用户下载。但是有些渠道和应用市场不允许这种默认行为，所以在适配这些渠道时需要禁止自动更新功能。一般的解决思路是提供一个配置字段，应用启动的时候检查该字段的值以决定是否开启自动更新功能。
+Gradle会在generateSources阶段为flavor生成一个BuildConfig.java文件。BuildConfig类默认提供了一些常量字段，比如应用的版本名（VERSION_NAME），应用的包名（PACKAGE_NAME）等。更强大的是，开发者还可以添加自定义的一些字段。下面的示例假设t3市场默认禁止自动更新功能：
+```
+android {
+    defaultConfig {
+        buildConfigField "boolean", "AUTO_UPDATES", "true"
+    }
+
+    productFlavors {
+        t3 {
+            buildConfigField "boolean", "AUTO_UPDATES", "false"
+        }
+    }
+}
+```
+上面的代码会在BuildConfig类中生成AUTO_UPDATES布尔常量，默认值为true，在使用t3渠道时，该值会被设置成false。接下来就可以在代码中使用AUTO_UPDATES常量来判断是否开启自动更新功能了。最后，运行gradle assembleT3命令即可生成默认不开启自动升级功能的渠道包。
+- 使用不同的资源
+最常见的一类适配是修改应用的资源，如不同的应用名称、不同的logo、不同的启动页等。
+Gradle在构建应用时，会优先使用flavor所属dataSet中的同名资源。所以，解决思路就是在flavor的dataSet中添加同名的字符串资源，以覆盖默认的资源。下面以适配t4渠道的应用名为Example2为例进行介绍。
+首先，在build.gradle配置文件中添加如下flavor：
+```
+android {
+    productFlavors {
+        t4 {
+        }
+    }
+}
+```
+上面的配置会默认src/t4目录为t4 flavor的dataSet。
+接下来，在src目录内创建t4目录，并添加如下应用名字符串资源（src/t4/res/values/appname.xml）：
+```
+<resources>
+    <string name="app_name">Example2</string>
+</resources>
+```
+默认的应用名字符串资源如下（src/main/res/values/strings.xml）:
+```
+<resources>
+    <string name="app_name">Example1</string>
+</resources>
+```
+最后，运行gradle assembleT4命令即可生成应用名为Example2的应用了。
+- 使用第三方SDK
+某些渠道会要求客户端嵌入第三方SDK来满足特定的适配需求，假设渠道t5需要引用`com.example.test3:test:1.0.0`该库，那么可以像如下这样描述：
+```
+android {
+    productFlavors {
+        t5 {
+        }
+    }
+}
+...
+dependencies {
+    provided 'com.example.test3:test:1.0.0'
+    t5Compile 'com.example.test3:test:1.0.0'
+}
+```
+上面添加了名为t5的flavor，并且指定编译和运行时都依赖`com.example.test3:test:1.0.0`。而其他渠道只是在构建的时候依赖该SDK，打包的时候并不会添加它。
+接下来，需要在代码中使用反射技术判断应用程序是否添加了该SDK，从而决定是否要显示该SDK提供的功能。部分代码如下：
+```
+class MyActivity extends Activity {
+    private boolean useSdk;
+
+    @override
+    public void onCreate(Bundle savedInstanceState) {
+        try {
+            Class.forName("com.example.test3.Test");
+            useSdk = true;
+        } catch (ClassNotFoundException ignored) {
+
+        }
+    }
+}
+```
+最后，运行gradle assembleT5命令即可生成包含该SDK功能的渠道包了。
+
+#### 七、反编译
+##### 1、原理
+反编译，又称为逆向编译技术，是指将可执行文件变成高级语言源程序的过程。反编译技术依赖于编译技术，是编译过程的逆过程。
+编译程序把一个源程序翻译成目标程序的工作过程分为五个阶段：词法分析；语法分析；语义检查和中间代码生成；代码优化；目标代码生成。词法分析的任务是对由字符组成的单词进行处理，从左至右逐个字符地对源程序进行扫描，产生一个个的单词符号，把作为字符串的源程序改造成为单词符号串的中间程序。语法分析以单词符号作为输入，分析单词符号串是否形成符合语法规则的语法单位，如表达式、赋值、循环等，最后看是否构成一个符合要求的程序。语义分析是审查源程序有无语义错误，为代码生成阶段收集类型信息。中间代码是源程序的一种内部表示，或称中间语言。中间代码的作用是可使编译程序的结构在逻辑上更为简单明确，特别是可使目标代码的优化比较容易实现。代码优化是指对程序进行多种等价变换，使得从变换后的程序出发，能生成更有效的目标代码。目标代码生成是编译的最后一个阶段。
+反编译器分为前端和后端，前端是一个机器依赖的模块，包含句法分析二进制程序、分析其指令的语义、并且生成该程序的低级中间表示法和每一子程序的控制流向图，通用的反编译机器是一个与语言和机器无关的模块，分析低级中间代码，将它转换成对任何高级语言都可接受的高级表示法，并且分析控制流向图的结构、把它们转换成用高级控制结构表现的图；而后端是一个目标语言依赖的模块，生成目标语言代码。
+##### 2、语言介绍
+C++、C语言一般不能反编译为源代码，只能反编译为asm（汇编）语言，因为C较为底层，编译之后不保留任何元信息，而计算机运行的二进制实际上就代表了汇编指令，所以反编译为汇编是较为简单的。
+C#、Java这类高级语言，尤其是需要运行环境的语言，如果没有混淆，非常容易反编译。原因很简单，这类语言只会编译为中间语言（C#为MSIL，Java为Bytecode），而中间语言与原语言本身较为相似，加上保留的元信息（记录类名、成员函数等信息）就可以反向生成源代码，注意是由反编译器生成，不会与源代码完全相同，但可以编译通过。这些特性本来是为反射技术准备的，却被反编译器利用，现在的C#反编译器ILSpy甚至可以反向工程。
+##### 3、工具
+- dex2jar 这个工具用于将dex文件转换成jar文件
+下载地址：http[://sourceforge.net/projects/dex2jar/files/](http://sourceforge.net/projects/dex2jar/files/)
+- jd-gui 这个工具用于将jar文件转换成java代码
+下载地址：[http://jd.benow.ca/](http://jd.benow.ca/)
+- apktool 这个工具用于最大幅度地还原APK文件中的9-patch图片、布局、字符串等等一系列的资源
+下载地址：[http://ibotpeaches.github.io/Apktool/install/](http://ibotpeaches.github.io/Apktool/install/)
+
+##### 4、反编译过程
+4.1、解压APK，获得其中的classes.dex文件；
+4.2、拷贝classes.dex文件到dex2jar工具的解压目录下，使用如下命令：`d2j-dex2jar classes.dex`获得classes-dex2jar.jar文件；
+4.3、使用工具jd-gui打开classes-dex2jar.jar文件，如果代码未被混淆，那么打开后就可以对除资源外的源码进行分析了；
+4.4、将APK拷贝到apktool的解压目录下，使用命令`apktool -d ***.apk`,其中d是decode的意思，表示我们要对`***.apk`这个文件进行解码。这样可得到一个以APK名称命名的目录，该目录下就是解码后的结果了，其中的资源都是可以查看的。apktool命令除了这个基本用法之外，我们还可以再加上一些附加参数来控制decode的更多行为：
+```
+-f 如果目标文件夹已存在，则强制删除现有文件夹（默认如果目标文件夹已存在，则解码失败）。
+-o 指定解码目标文件夹的名称（默认使用APK文件的名字来命名目标文件夹）。
+-s 不反编译dex文件，也就是说classes.dex文件会被保留（默认会将dex文件解码成smali文件）。
+-r 不反编译资源文件，也就是说resources.arsc文件会被保留（默认会将resources.arsc解码成具体的资源文件）。
+```
+4.5、假如我们修改了解码后的部分代码或资源中的内容需要重新打包，那么则使用命令`apktool b *** -o New_***.apk`进行打包；
+4.6、打包后还不能安装，需要重新进行签名，签名过程上文已描述过，在此就不赘述该过程了；
+4.7、Android还极度建议我们对签名后的APK文件进行一次对齐操作，因为这样可以使得我们的程序在Android系统中运行得更快，对齐操作使用的是zipalign工具，该工具存放于<Android SDK>/build-tools/<version>目录下，对齐使用命令如下：`zipalign 4 New_***.apk New_***_aligned.apk`，其中4是固定值。
+- 注：以上所写`***`都表示该APK的名称，还有以上所描述过程仅用作技术交流，仅限于学习。
+
+#### 八、加固
+Android中的Apk反编译可能是每个开发都会经历的事，但是在反编译的过程中，对于源程序的开发者来说那是不公平的，那么Apk加固也是应运而生，现在网上有很多Apk加固的第三方平台，如以下所示：
+[爱加密加固](http://jingyan.baidu.com/article/7e440953ddaf6f2fc0e2efa0.html)
+[360加固](http://jiagu.360.cn/1101144936.php?dtid=1101144931&did=1101151213)
+[梆梆加固](http://dev.bangcle.com/home/help?id=2)
+其实加固有些人认为很高深的技术，其实不然，说的简单点就是对源Apk进行加密，然后在套上一层壳即可，当然还有很多细节需要处理，其简单介绍如下：
+1、加壳程序
+任务：对源程序Apk进行加密，合并脱壳程序的Dex文件 ，然后输入一个加壳之后的Dex文件
+语言：任何语言都可以，不限于Java语言
+技术点：对Dex文件格式的解析
+2、脱壳程序
+任务：获取源程序Apk,进行解密，然后动态加载进来，运行程序
+语言：Android项目(Java)
+技术点：如何从Apk中获取Dex文件，动态加载Apk，使用反射运行Application
+目前来说，不管是混淆、加密还是加固都不完全是安全的，不管何时，逆向和安全的战争都永远不会停歇。但对于普通应用来说，混淆和加固基本就可以保证你应用的安全了，因为不管是出于什么原因都是需要考虑时间和人力成本的。
 
 ##### 参考链接：
 1、[Android 项目的代码混淆，Android proguard 使用说明](http://blog.csdn.net/catoop/article/details/47208833)

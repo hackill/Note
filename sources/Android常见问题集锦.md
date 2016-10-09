@@ -361,3 +361,15 @@ $ repo sync
 **描述：**用LIstView呈现的数据，类似于静态的那中，但是不要点击效果，默认的就是点击一下显示成橙黄色  
 **原因：**主要是实现点击没效果，其实是有效果只不过是透明给掩盖了
 **解决：**在listview布局属性中添加如下属性android:listSelector="@android:color/transparent"；
+
+#### 9、Didn't find class "com.android.tools.fd.runtime.BootstrapApplication"
+**描述：**提供的安装包在部分手机上安装点击后直接崩溃，提示Didn't find class "com.android.tools.fd.runtime.BootstrapApplication"这样的错误
+**原因：**Instant Run不支持5.0以下系统
+**解决：**
+方法一：直接Clean工程，再重新打包
+方法二：禁止Instant Run功能，按照如下步骤操作即可：File –> Settings–>Build,Execution,Deployment –>Instant Run —> 不勾选 “Enable instant run”
+方法三：修改编译环境，将相关的版本信息调低
+将`classpath 'com.android.tools.build:gradle:2.2.0'`修改为`classpath 'com.android.tools.build:gradle:1.2.3'`；将`buildToolsVersion '23.0.2`修改为`buildToolsVersion "21.1.2"`；找到`.idea/gradle.xml`文件，将`<option name="gradleHome" value="$APPLICATION_HOME_DIR$/gradle/gradle-2.8" />`修改为`<option name="gradleHome" value="$APPLICATION_HOME_DIR$/gradle/gradle-2.4" />`
+出现如上问题，一般第一种方法都能解决，如果不行，禁用Instant Run功能即可，一般第三种方法不推荐使用。
+
+

@@ -3,6 +3,8 @@
 
 *注：此文后续会同步更新最新的问题哦！*
 
+**最近一次更新时间：**October 10, 2016 10:42 AM
+
 ### 代码类
 #### 1、Java工程中调用Android库出现“Stub!”错误
 **描述：**控制台显示错误：Exception in thread "main" java.lang.RuntimeException: Stub!
@@ -264,6 +266,49 @@ dexOptions {
 **解决：**这种情况一般出现在本地已经有工程了，想提交到SVN库中，但是在第一次Share Project时没有设置忽略，因为第一次分享到SVN后就相当于把所有文件都提交到SVN库中了，这样不管你后面如何设置忽略都是无效的，因为SVN库中已经有这些文件了，所以只有在Share Project之前设置忽略才会真正忽略，设置忽略的操作步骤如下所示：
 打开设置，在下图所示中找到版本控制忽略文件的条目，点击右上角的添加按钮添加忽略就行。最后再点击菜单栏中的VCS，选择Import into Version Control，再选择Share Project(Subversion)分享到SVN库中就可以了。
 ![设置忽略](http://img.blog.csdn.net/20160927110551414)
+
+#### 11、Error:(2, 0) Plugin with id 'com.github.dcendents.android-maven' not found
+**描述：**在上传代码到jCenter库时需要配置
+```
+apply plugin: 'com.github.dcendents.android-maven'
+apply plugin: 'com.jfrog.bintray'
+```
+而在配置后构建出现`Error:(2, 0) Plugin with id 'com.github.dcendents.android-maven' not found`错误。
+**原因：**在使用插件功能时需要配置插件的支持来源及版本。
+**解决：**找到project的build.gradle添加如下配置
+```
+classpath 'com.github.dcendents:android-maven-gradle-plugin:1.3'
+classpath "com.jfrog.bintray.gradle:gradle-bintray-plugin:1.0"
+```
+完整配置如下：
+```
+buildscript {
+    repositories {
+        jcenter()
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:1.5.0'
+        classpath 'com.github.dcendents:android-maven-gradle-plugin:1.3'
+        classpath "com.jfrog.bintray.gradle:gradle-bintray-plugin:1.0"
+    }
+}
+```
+然后重新构建即可。
+
+#### 12、 Failed to apply plugin [id 'com.github.dcendents.android-maven']，Could not create plugin of type 'AndroidMavenPlugin'.
+**描述：**在使用Android Studio2.2时需要将gradle插件版本更新为`classpath 'com.android.tools.build:gradle:2.2.0'`，构建工具版本更新为`distributionUrl=https\://services.gradle.org/distributions/gradle-2.14.1-all.zip`，而在使用上传代码到jCenter功能时报错：`Failed to apply plugin [id 'com.github.dcendents.android-maven']，Could not create plugin of type 'AndroidMavenPlugin'.`
+**原因：**AndroidMavenPlugin插件版本配置过低。
+**解决：**将原来的配置
+```
+classpath 'com.github.dcendents:android-maven-gradle-plugin:1.3'
+classpath "com.jfrog.bintray.gradle:gradle-bintray-plugin:1.0"
+```
+改成如下形式就行：
+```
+classpath 'com.github.dcendents:android-maven-gradle-plugin:1.5'
+classpath "com.jfrog.bintray.gradle:gradle-bintray-plugin:1.0"
+```
+
 
 ### 操作类
 #### 1、Javadoc中产生乱码的解决方法

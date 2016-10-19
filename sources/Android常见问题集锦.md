@@ -3,7 +3,7 @@
 
 *注：此文后续会同步更新最新的问题哦！*
 
-**最近一次更新时间：**October 10, 2016 10:42 AM
+**最近一次更新时间：** October 10, 2016 10:42 AM
 
 ### 代码类
 #### 1、Java工程中调用Android库出现“Stub!”错误
@@ -120,7 +120,7 @@ public class MyGridView extends GridView {
 **解决：**设置ListView或GridView的android:clipToPadding ＝ true，然后通过paddingTop和paddingBottom设置距离就好了。
 
 #### 11、Manifest merger failed : uses-sdk:minSdkVersion 15 cannot be smaller than version 18 declared in library
-**描述：**Manifest merger failed : uses-sdk:minSdkVersion 15 cannot be smaller than version 18 declared in library;Suggestion:use tools:overrideLibrary="xxx.xxx.xxx" to force usage.
+**描述：** Manifest merger failed : uses-sdk:minSdkVersion 15 cannot be smaller than version 18 declared in library;Suggestion:use tools:overrideLibrary="xxx.xxx.xxx" to force usage.
 **原因：**出现这个错误一般是引用库的最低版本高于该工程最低版本；
 **解决：**在AndroidManifest.xml文件中 标签中添加<uses-sdk tools:overrideLibrary="xxx.xxx.xxx"/>，其中的xxx.xxx.xxx为第三方库包名，如果存在多个库有此异常，则用逗号分割它们，例如：<uses-sdk tools:overrideLibrary="xxx.xxx.aaa, xxx.xxx.bbb"/>，这样做是为了项目中的AndroidManifest.xml和第三方库的AndroidManifest.xml合并时可以忽略最低版本限制。
 
@@ -251,7 +251,7 @@ dependencies {
 方式三、在自定义的Application中实现attachBaseContext方法，在其中添加如下代码：`MultiDex.install(this)`，该方法比onCreate方法先执行。
 
 #### 9、Gradle进行dex遇到内存不够用的情况
-**描述：**java.lang.OutOfMemoryError: GC overhead limit exceeded；
+**描述：** java.lang.OutOfMemoryError: GC overhead limit exceeded；
 **原因：**在Gradle进行dex的可能会遇到内存不够用的情况；
 **解决：**在build文件的android属性下配置dexOptions下的javaMaxHeapSize大小即可，我这里配置2g；
 ```
@@ -297,7 +297,7 @@ buildscript {
 
 #### 12、 Failed to apply plugin [id 'com.github.dcendents.android-maven']，Could not create plugin of type 'AndroidMavenPlugin'.
 **描述：**在使用Android Studio2.2时需要将gradle插件版本更新为`classpath 'com.android.tools.build:gradle:2.2.0'`，构建工具版本更新为`distributionUrl=https\://services.gradle.org/distributions/gradle-2.14.1-all.zip`，而在使用上传代码到jCenter功能时报错：`Failed to apply plugin [id 'com.github.dcendents.android-maven']，Could not create plugin of type 'AndroidMavenPlugin'.`
-**原因：**AndroidMavenPlugin插件版本配置过低。
+**原因：** AndroidMavenPlugin插件版本配置过低。
 **解决：**将原来的配置
 ```
 classpath 'com.github.dcendents:android-maven-gradle-plugin:1.3'
@@ -403,18 +403,16 @@ $ repo sync
 ```
 
 #### 8、ListView取消点击效果
-**描述：**用LIstView呈现的数据，类似于静态的那中，但是不要点击效果，默认的就是点击一下显示成橙黄色  
+**描述：**用LIstView呈现的数据，类似于静态的那中，但是不要点击效果，默认的就是点击一下显示成橙黄色
 **原因：**主要是实现点击没效果，其实是有效果只不过是透明给掩盖了
 **解决：**在listview布局属性中添加如下属性android:listSelector="@android:color/transparent"；
 
 #### 9、Didn't find class "com.android.tools.fd.runtime.BootstrapApplication"
 **描述：**提供的安装包在部分手机上安装点击后直接崩溃，提示Didn't find class "com.android.tools.fd.runtime.BootstrapApplication"这样的错误
-**原因：**Instant Run不支持5.0以下系统
+**原因：** Instant Run不支持5.0以下系统
 **解决：**
 方法一：直接Clean工程，再重新打包
 方法二：禁止Instant Run功能，按照如下步骤操作即可：File –> Settings–>Build,Execution,Deployment –>Instant Run —> 不勾选 “Enable instant run”
 方法三：修改编译环境，将相关的版本信息调低
 将`classpath 'com.android.tools.build:gradle:2.2.0'`修改为`classpath 'com.android.tools.build:gradle:1.2.3'`；将`buildToolsVersion '23.0.2`修改为`buildToolsVersion "21.1.2"`；找到`.idea/gradle.xml`文件，将`<option name="gradleHome" value="$APPLICATION_HOME_DIR$/gradle/gradle-2.8" />`修改为`<option name="gradleHome" value="$APPLICATION_HOME_DIR$/gradle/gradle-2.4" />`
 出现如上问题，一般第一种方法都能解决，如果不行，禁用Instant Run功能即可，一般第三种方法不推荐使用。
-
-

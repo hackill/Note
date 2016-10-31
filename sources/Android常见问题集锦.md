@@ -309,6 +309,28 @@ classpath 'com.github.dcendents:android-maven-gradle-plugin:1.5'
 classpath "com.jfrog.bintray.gradle:gradle-bintray-plugin:1.0"
 ```
 
+#### 13、Error:Jack is required to support java 8 language features [duplicate]
+**描述：**Error:Jack is required to support java 8 language features. Either enable Jack or remove sourceCompatibility JavaVersion.VERSION_1_8.
+**原因：**没有打开Jack功能
+**解决：**按照如下进行配置就行：
+```
+android {
+  ...
+  compileSdkVersion 24
+  buildToolsVersion "24.0.1"
+  defaultConfig {
+  ...
+      jackOptions {
+         enabled true //关键配置
+      }
+  }
+
+  compileOptions {
+    sourceCompatibility JavaVersion.VERSION_1_8
+    targetCompatibility JavaVersion.VERSION_1_8
+  }
+} 
+```
 
 ### 操作类
 #### 1、Javadoc中产生乱码的解决方法

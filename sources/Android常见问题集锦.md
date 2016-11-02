@@ -332,6 +332,11 @@ android {
 } 
 ```
 
+#### 14、反射多出$change属性，导致读取属性出错
+**描述：**使用Android studio2.2 IDE和Android6.0系统调试时发现类反射时多出了`$change`及`serializableUUID`属性，该类也没实现`Serializable`接口。
+**原因：**在Android Studio2.2 IDE和Android4.4系统没有出现该问题，网上描述说是Instant Run功能的影响，关闭后确实解决了，但是不是很理解，望知道的告知下原因，谢谢！
+**解决：**在Android Studio中依次打开File->Settings->Build,Execution,Deployment->Instant Run，把对应的功能关闭即可。
+
 ### 操作类
 #### 1、Javadoc中产生乱码的解决方法
 **描述：**在生成javadoc文档或者在进行打包时出现“编码GBK的不可映射字符”错误。

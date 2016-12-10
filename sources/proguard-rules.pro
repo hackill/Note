@@ -222,14 +222,6 @@
 -dontwarn cn.jpush.**
 -keep class cn.jpush.** { *; }
 
-#高徳地图
--dontwarn com.amap.api.**
--dontwarn com.a.a.**
--dontwarn com.autonavi.**
--keep class com.amap.api.**  {*;}
--keep class com.autonavi.**  {*;}
--keep class com.a.a.**  {*;}
-
 #人脸识别
 -dontwarn com.isnc.facesdk.**
 -dontwarn com.matrixcv.androidapi.face.**
@@ -337,6 +329,88 @@
 #sharesdk 微信 收藏
 -dontwarn cn.sharesdk.wechat.favorite.**
 -keep class cn.sharesdk.wechat.favorite.** { *; }
+
+#### 高德相关依赖
+#集合包:3D地图3.3.2 导航1.8.0 定位2.5.0
+-dontwarn com.amap.api.**
+-dontwarn com.autonavi.**
+-keep class com.amap.api.**{*;}
+-keep class com.autonavi.**{*;}
+
+#地图服务 2.4.0
+-dontwarn com.amap.api.services.**
+-keep class com.map.api.services.** {*;}
+#3D地图 2.5.0
+-dontwarn com.amap.api.mapcore.**
+-dontwarn com.amap.api.maps.**
+-dontwarn com.autonavi.amap.mapcore.**
+-keep class com.amap.api.mapcore.**{*;}
+-keep class com.amap.api.maps.**{*;}
+-keep class com.autonavi.amap.mapcore.**{*;}
+#定位 1.3.1
+-dontwarn com.amap.api.location.**
+-dontwarn com.aps.**
+-keep class com.amap.api.location.**{*;}
+-keep class com.aps.**{*;}
+#导航 1.1.2
+-dontwarn com.amap.api.navi.**
+-dontwarn com.autonavi.**
+-keep class com.amap.api.navi.** {*;}
+-keep class com.autonavi.** {*;}
+
+## bugly 1.2.8
+-dontwarn com.tencent.bugly.**
+-keep class com.tencent.bugly.** {*;}
+
+#秋百万的cube-sdk,android-Ultra-Pull-To-Refresh
+-dontwarn in.srain.cube.**
+
+#fastjson
+-dontwarn com.alibaba.fastjson.**
+-keepattributes Signature
+-keepattributes *Annotation*
+
+#讯飞语音
+-dontwarn com.iflytek.**
+-keep class com.iflytek.** {*;}
+
+#ping++支付  未包含百度钱包
+-dontwarn com.alipay.**
+-keep class com.alipay.** {*;}
+-dontwarn  com.ta.utdid2.**
+-keep class com.ta.utdid2.** {*;}
+-dontwarn  com.ut.device.**
+-keep class com.ut.device.** {*;}
+-dontwarn  com.tencent.**
+-keep class com.tencent.** {*;}
+-dontwarn  com.unionpay.**
+-keep class com.unionpay.** {*;}
+-dontwarn com.pingplusplus.**
+-keep class com.pingplusplus.** {*;}
+
+## 友盟自动更新 2.6.0.1
+-keepclassmembers class * { public <init>(org.json.JSONObject); }
+-keep public class cn.irains.parking.cloud.pub.R$*{ public static final int *; }
+-keep public class * extends com.umeng.**
+-keep class com.umeng.** { *; }
+
+##友盟统计分析 5.5.3
+-keepclassmembers class * { public <init>(org.json.JSONObject); }
+-keepclassmembers enum com.umeng.analytics.** {
+public static **[] values();
+public static ** valueOf(java.lang.String);
+}
+
+#信鸽
+## jg:1.1
+## mid:2.20
+## wup:1.0.0-SNAPSHOT, 1.0.0.E-SNAPSHOT
+## xg_sdk:2.38_20150405_2046, 2.45_20160510_1845
+-keep public class * extends android.app.Service
+-keep public class * extends android.content.BroadcastReceiver
+-keep class com.tencent.android.tpush.**  {* ;}
+-keep class com.tencent.mid.**  {* ;}
+-keepattributes *Annotation*
 ################################################################################################################################################################
 
 #实体类
